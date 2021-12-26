@@ -1,6 +1,8 @@
 # blet
 Even better let+cond clojure macro.
 
+Use it, but don't abuse it.
+
 # Installation
 ### Requires Clojure 1.10
 `clojure.core.specs` spec dispatch keywords were changed somewhere between 1.9 and 1.10. Needs a bit of extra work to support earlier version too.
@@ -9,7 +11,7 @@ Even better let+cond clojure macro.
 ;; deps.edn
 {:deps {github-akovantsev/blet
         {:git/url "https://github.com/akovantsev/blet"
-         :sha     "bbf6dc5847ef7c1342d520802a06165aa2dcb705"}}}
+         :sha     "777072a74883f9ca7af837c4af8541cf7b0f291f"}}} ;; actual sha
 ```
 
 
