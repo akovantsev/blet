@@ -9,10 +9,6 @@
 ;; todo: always include `_` bindings, for things like print/log
 
 
-
-(defn spy [x] (clojure.pprint/pprint x) x)
-(defmacro labeled [syms] `(zipmap '~syms ~syms))
-
 (defn dequalify [x] (-> x name symbol))
 (defn mergecat [ms] (reduce (partial merge-with concat) ms))
 
@@ -130,7 +126,7 @@
                           ['let
                            (vec (mapcat bindings dep-ids))]
                           [form]))))]
-    ;(spy (labeled [stats branches]))
+    ;(clojure.pprint/pprint [stats branches]))
     (loop [idx  (-> branches count dec)
            form nil]
       (let [branch (get branches idx)]

@@ -6,7 +6,9 @@
    [com.akovantsev.blet.impl :as impl]))
 
 
-(defn assert= [msg x y] (assert (= x y) (str msg "\n" (impl/spy x) "\nnot=\n" (impl/spy y))))
+(defn assert= [msg x y]
+  (assert (= x y)
+    (str msg "\n" (clojure.pprint/pprint x) "\nnot=\n" (clojure.pprint/pprint y))))
 
 
 (assert= "require clojure 1.10. 1.9 has different core.specs dispatch keywords."
