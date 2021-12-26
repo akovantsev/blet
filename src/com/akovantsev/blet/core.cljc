@@ -1,4 +1,6 @@
 (ns com.akovantsev.blet.core
+  #?(:cljs (:require-macros
+            [com.akovantsev.blet.core :refer [blet]]))
   (:require [com.akovantsev.blet.impl :as impl]))
 
 
