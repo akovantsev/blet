@@ -1,5 +1,6 @@
 (ns com.akovantsev.blet.test
   (:require
+   [clojure.walk :as walk]
    [clojure.spec.alpha :as s]
    [clojure.core.specs.alpha :as cs]
    [com.akovantsev.blet.core :as core]
@@ -8,43 +9,107 @@
 
 (defn assert= [msg x y]
   (assert (= x y)
-    (str msg "\n" (clojure.pprint/pprint x) "\nnot=\n" (clojure.pprint/pprint y))))
+    (str msg "\n"
+      (with-out-str (clojure.pprint/pprint x))
+      "\nnot=\n"
+      (with-out-str (clojure.pprint/pprint y)))))
 
 
-(assert= "require clojure 1.10. 1.9 has different core.specs dispatch keywords."
-  (s/conform ::cs/binding-form '[a])
-  '[:seq-destructure {:forms [[:local-symbol a]]}])
+;; I failed to with-redefs `gensym` inside the `destructure`, so this
+;; resets generated symbols' counts, so example-based tests would work:
+(defn reset-gensym [form]
+  (let [!n (atom {})
+        r!  (fn replace [form]
+              (if-let [[_ pref N] (re-matches #"(vec|seq|map|first)__(\d+)" (name form))]
+                (let [n (or (get @!n N)
+                          (let [len (count @!n)]
+                            (swap! !n assoc N len)
+                            len))]
+                  (symbol (str pref "__" n)))
+                form))
+        f  (fn replacesym [form]
+             (if (simple-symbol? form) (r! form) form))]
+    (walk/postwalk f form)))
 
 
-(let [form '[{:as x :or {y a z b}} s [d f] & tail]
-      res (impl/get-locals form)]
-  (assert= "locals extraction"
-    (set (::impl/left-names res))
-    (set '[x y z s s d f tail]))
-  (assert= "deps extraction"
-    (set (::impl/left-forms res))
-    (set '[a b])))
+(let [form '(let [{:keys [:x ::y] [a b & tail] :z} {}])]
+  (assert= "reset-gensym"
+    (reset-gensym (macroexpand-1 form))
+    (reset-gensym (macroexpand-1 form))))
 
+
+(assert= "destructure support example 1"
+  (reset-gensym
+    (macroexpand-1
+      '(core/blet [[x y & tail] (range 10)]
+         (cond
+           1 x
+           2 y
+           3 tail))))
+  '(if 1
+     (let [vec__0   (range 10)
+           seq__1   (clojure.core/seq vec__0)
+           first__2 (clojure.core/first seq__1)
+           x        first__2]
+       x)
+     (if
+      2 (let [vec__0   (range 10)
+              seq__1   (clojure.core/seq vec__0)
+              seq__1   (clojure.core/next seq__1)
+              first__2 (clojure.core/first seq__1)
+              y        first__2]
+          y)
+        (if 3
+          (let [vec__0 (range 10)
+                seq__1 (clojure.core/seq vec__0)
+                seq__1 (clojure.core/next seq__1)
+                seq__1 (clojure.core/next seq__1)
+                tail seq__1]
+            tail)
+          nil))))
 
 (assert= "example"
-  (macroexpand-1
-    '(core/blet [x 1
-                 y 2
-                 z 3
-                 t :foo
-                 a (println x y)
-                 b (println x z)
-                 c (println y z)]
-       (cond
-         1 a
-         2 b
-         3 c)))
+  (reset-gensym
+    (macroexpand-1
+      '(core/blet [x 1
+                   y 2
+                   z 3
+                   {:keys [::x :z] :strs [yolo] :as foo :syms [sup]} {}
+                   t :foo
+                   a (println x y)
+                   b (println x z)
+                   c (println y z)]
+         (cond
+           1 a
+           2 b
+           3 c))))
   '(if 1
-     (let [x 1 y 2 a (println x y)] a)
+     (let [y      2
+           map__0 {}
+           map__0 (if (clojure.core/seq? map__0)
+                    (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
+                    map__0)
+           x      (clojure.core/get map__0 :com.akovantsev.blet.test/x)
+           a      (println x y)]
+       a)
      (if 2
-       (let [x 1 z 3 b (println x z)] b)
+       (let [map__0 {}
+             map__0 (if (clojure.core/seq? map__0)
+                      (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
+                      map__0)
+             x (clojure.core/get map__0 :com.akovantsev.blet.test/x)
+             z (clojure.core/get map__0 :z)
+             b (println x z)]
+         b)
        (if 3
-         (let [y 2 z 3 c (println y z)] c)
+         (let [y      2
+               map__0 {}
+               map__0 (if (clojure.core/seq? map__0)
+                        (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
+                        map__0)
+               z      (clojure.core/get map__0 :z)
+               c      (println y z)]
+           c)
          nil))))
 
 

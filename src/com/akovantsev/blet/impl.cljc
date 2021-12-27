@@ -1,67 +1,14 @@
-(ns com.akovantsev.blet.impl
-  (:require
-   [clojure.spec.alpha :as s]
-   [clojure.core.specs.alpha :as cs]))
+(ns com.akovantsev.blet.impl)
 
-;; todo: support one last extra form as default
 ;; todo: detect nested bindings (let, fn, binding, ...) shadowing the
 ;; symbols defined in blet, to avoid unused (potentially sideeffectful) declarations
 ;; todo: always include `_` bindings, for things like print/log
 
 
-(defn dequalify [x] (-> x name symbol))
-(defn mergecat [ms] (reduce (partial merge-with concat) ms))
-
-(declare get-locals)
-(defn map-form-locals [m]
-  (let [{:keys [::left-forms
-                ::left-names]} (->> m
-                                 (keys)
-                                 (sequence
-                                   (comp
-                                     (remove keyword?)
-                                     (map get-locals)))
-                                 (mergecat))]
-    {::left-forms (concat
-                    left-forms
-                    (->> m :or vals))
-     ::left-names (concat
-                    left-names
-                    (->> m :as vector)
-                    (->> m :or keys)
-                    (->> m :strs)
-                    (->> m :syms (map dequalify))
-                    (->> m :keys (map dequalify))
-                    (->> m (mapcat
-                             (fn [[k v]]
-                               (when (s/valid? ::cs/ns-keys [k v])
-                                 (map dequalify v))))))}))
-
-
-(defn get-locals-conformed [[tag form]]
-  (case tag
-    ;;clj 1.9 vs 1.10 spec dispatch keys -___- :
-    (:sym :local-symbol)    {::left-names [form]}
-    (:map :map-destructure) (map-form-locals form)
-    (:seq :seq-destructure) (mergecat
-                              (map get-locals-conformed
-                                (remove nil?
-                                  (concat
-                                    ;;; 1.9 fixme:
-                                    ;(-> form :elems set)
-                                    ;[(-> form :as)
-                                    ; (-> form :rest :form)]
-                                    ;; 1.10
-                                    (-> form :forms set)
-                                    [(some->> form :as-form :as-sym (conj [:local-symbol]))
-                                     (-> form :rest-forms :form)]))))))
-
-(defn get-locals [left]
-  (get-locals-conformed (s/conform ::cs/binding-form left)))
-
-
 (defn blet [bindings COND]
-  (s/assert ::cs/bindings bindings)
+  ;; same bindibgs asserts as in clojure.core/let:
+  (assert (-> bindings vector?))
+  (assert (-> bindings count even?))
   (assert (-> COND first (= 'cond)))
   (assert (-> COND count odd?))
   (let [branches  (vec (rest COND))
@@ -73,21 +20,20 @@
                       (remove nil?)
                       (into #{})))
         stats     (->> bindings
+                    (destructure)
                     (partition 2)
                     (map-indexed vector)
                     (reduce
                       (fn [m [idx [left right]]]
                         (let [{:keys [::name->binding-id
                                       ::binding-id->dep-ids]} m
-                              {:keys [::left-forms ::left-names]} (get-locals left)
-                              forms       [left-forms right]
-                              direct-deps (form-deps forms name->binding-id)
+                              direct-deps (form-deps right name->binding-id)
                               all-deps    (->> direct-deps
                                             (mapcat binding-id->dep-ids)
                                             (into direct-deps))]
                           (-> m
                             (update ::bindings conj [left right])
-                            (update ::name->binding-id merge (zipmap left-names (repeat idx)))
+                            (update ::name->binding-id assoc left idx)
                             ;; todo left here too:
                             (update ::binding-id->dep-ids assoc idx all-deps))))
                       {::bindings            []

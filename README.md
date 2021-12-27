@@ -4,9 +4,6 @@ Even better let+cond clojure macro.
 Use it, but don't abuse it.
 
 # Installation
-### Requires Clojure 1.10
-`clojure.core.specs` spec dispatch keywords were changed somewhere between 1.9 and 1.10. Needs a bit of extra work to support earlier version too.
-
 ```clojure
 ;; deps.edn
 {:deps {github-akovantsev/blet
@@ -77,9 +74,9 @@ required 1) to get to 2) and evaluate winning `cond` branch, are declared.
 Both are essential, but already are natural to anybody (yes?).
 As `blet` relies on them for bindings interleaving with cond branches.
 
-The only code analisys done is to figure out symbol declarations and dependencies between bindings adn branches.
+The only code analisys done is to figure out symbol declarations and dependencies between bindings and branches.
 
-`clojure.core.specs` are leveraged to do that.
+`clojure.core/destructure` is leveraged to do that.
 
 
 # Weaknesses
@@ -110,8 +107,8 @@ The only code analisys done is to figure out symbol declarations and dependencie
 - more convoluted poster examples
 - always inlude `_` bindings, to allow everyone's best friend `(let [_ (println stuff)])`, and unconditional sideeffects in general.
 - detect shadowing of declared, but unused locals in nested forms like `let/fn/letfn/binding/with-redefs/etc.`
-- support extra `cond` branch as default (like in `case`).
-- support clojure 1.9 (it has different dispatch keys in binding/destructuring specs). 
+- ~~support extra `cond` branch as default (like in `case`).~~
+  For now, I'd like to preserve both let's and cond's original syntax, so you could just change `blet` to `let` for pure forms, and that's it.
 
 
 
@@ -124,7 +121,7 @@ Code simplification, like:
     ;;=>
     x
     ```
-- removing nested unused definitions
+- ~~removing nested unused definitions~~
     ```clojure
     (let [[x y] (range), {:keys [a b]} {}]
       [x a])
@@ -132,6 +129,9 @@ Code simplification, like:
     (let [[x  ] (range), {:keys [a  ]} {}]
       [x a])
     ```
+    To add prior clojure versions support I replaced custom `clojure.core.specs`-based bindings parsing code with use of
+     `clojure.core/destructure`. As a result, I got 1) unused nested bindings elimination, and 2) slightly harder to read macroexpansion (see tests for examples).
+
 - shortcircuiting truthy branches with literals as predicates (hm, this one is interesting!)
     ```clojure
     (if true 
