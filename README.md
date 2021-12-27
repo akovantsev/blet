@@ -3,19 +3,11 @@ Even better let+cond clojure macro.
 
 Use it, but don't abuse it.
 
-# Installation
-```clojure
-;; deps.edn
-{:deps {github-akovantsev/blet
-        {:git/url "https://github.com/akovantsev/blet"
-         :sha     "f71528368268222db56875405a6db75c2a4f532d"}}} ;; actual sha
-```
-
 
 # What
 
 ```clojure
-;; clojure/clojurescript
+;; in clojure/clojurescript
 (:require [com.akovantsev.blet.core :refer [blet]])
 
 (macroexpand-1
@@ -47,6 +39,33 @@ Use it, but don't abuse it.
       nil)))
 ```
 
+# Installation
+```clojure
+;; in deps.edn
+{:deps {github-akovantsev/blet
+        {:git/url "https://github.com/akovantsev/blet"
+         :sha     "f71528368268222db56875405a6db75c2a4f532d"}}} ;; actual sha
+```
+
+# Core value proposition, `blet`
+ 
+interleaves `let` bindings and `cond` branches, preserving* order of both, so that:
+ - only bindings required 1) to get to 2) and evaluate winning `cond` branch, are declared.
+ - you don't have to solve that puzzle yourself each time upon changes, by manually rearranging code,
+  extrating duplicate bindings to functions, and what not.
+
+*You only need t(w)o:
+1) write `blet` bindings in a valid dependency order (as you would do in `let` anyway), and to
+2) choose correct order of `cond` branches (as you'd do anyway).
+
+Both are essential, but already are natural to anybody (yes?).
+As `blet` relies on them for bindings interleaving with cond branches.
+
+The only code analisys done is to figure out symbol declarations and dependencies between bindings and branches.
+
+`clojure.core/destructure` is leveraged to do that.
+
+
 # Rationale
 For general intro and rationale I refer you to the excelent: https://github.com/Engelberg/better-cond/blob/86d93ffb143881bf6057b00e8345a0c6c0ba4969/README.md#rationale .
 
@@ -61,22 +80,6 @@ I am all for reading code carefully and for knowing what exactly is committed in
 
 But sometimes you just want to rename things with a single hot-key press,
 and not go fulltext search on repo to make sure nobody has died.
-
-## Core value proposition, `blet`
- 
-interleaves `let` bindings and `cond` branches, preserving* order of both, so that only bindings
-required 1) to get to 2) and evaluate winning `cond` branch, are declared.
-
-*You only need t(w)o:
-1) write `blet` bindings in a valid dependency order (as you would do in `let` anyway), and to
-2) choose correct order of `cond` branches (as you'd do anyway).
-
-Both are essential, but already are natural to anybody (yes?).
-As `blet` relies on them for bindings interleaving with cond branches.
-
-The only code analisys done is to figure out symbol declarations and dependencies between bindings and branches.
-
-`clojure.core/destructure` is leveraged to do that.
 
 
 # Weaknesses
