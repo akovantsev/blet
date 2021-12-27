@@ -25,7 +25,7 @@
                   (symbol (str pref "__" n)))
                 form))
         f  (fn replacesym [form]
-             (if (and (symbol? form) (nil? (namespace form))) form) (r! form) form)]
+             (if (and (symbol? form) (nil? (namespace form))) (r! form) form))]
     (walk/postwalk f form)))
 
 
