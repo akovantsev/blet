@@ -12,7 +12,7 @@
   (assert (-> COND first (= 'cond)))
   (assert (-> COND count odd?))
   (let [branches  (vec (rest COND))
-        branch?   #(and (seqable? %) (-> % first (not= 'quote)))
+        branch?   #(and (or (vector? %) (seq? %) (map? %) (list? %)) (-> % first (not= 'quote)))
         form-deps (fn [form name->id]
                     (->> form
                       (tree-seq branch? seq)

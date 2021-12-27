@@ -1,10 +1,7 @@
 (ns com.akovantsev.blet.test
   (:require
    [clojure.walk :as walk]
-   [clojure.spec.alpha :as s]
-   [clojure.core.specs.alpha :as cs]
-   [com.akovantsev.blet.core :as core]
-   [com.akovantsev.blet.impl :as impl]))
+   [com.akovantsev.blet.core :as core]))
 
 
 (defn assert= [msg x y]
@@ -18,7 +15,7 @@
 ;; I failed to with-redefs `gensym` inside the `destructure`, so this
 ;; resets generated symbols' counts, so example-based tests would work:
 (defn reset-gensym [form]
-  (let [!n (atom {})
+  (let [!n  (atom {})
         r!  (fn replace [form]
               (if-let [[_ pref N] (re-matches #"(vec|seq|map|first)__(\d+)" (name form))]
                 (let [n (or (get @!n N)
@@ -28,7 +25,7 @@
                   (symbol (str pref "__" n)))
                 form))
         f  (fn replacesym [form]
-             (if (simple-symbol? form) (r! form) form))]
+             (if (and (symbol? form) (nil? (namespace form))) form) (r! form) form)]
     (walk/postwalk f form)))
 
 
