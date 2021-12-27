@@ -32,10 +32,10 @@
                                             (mapcat binding-id->dep-ids)
                                             (into direct-deps))]
                           (-> m
-                            (update ::bindings conj [left right])
-                            (update ::name->binding-id assoc left idx)
+                            (update-in [::bindings] conj [left right])
+                            (assoc-in [::name->binding-id left] idx)
                             ;; todo left here too:
-                            (update ::binding-id->dep-ids assoc idx all-deps))))
+                            (assoc-in [::binding-id->dep-ids idx] all-deps))))
                       {::bindings            []
                        ::name->binding-id    {}
                        ::binding-id->dep-ids {}
@@ -57,9 +57,9 @@
                                              (into direct-deps))
                               to-declare   (reduce disj all-deps declared)]
                           (-> m
-                            (update ::all-deps assoc idx all-deps)
-                            (update ::declared assoc idx (into declared (when (even? idx) to-declare)))
-                            (update ::to-declare assoc idx to-declare))))
+                            (assoc-in [::all-deps idx] all-deps)
+                            (assoc-in [::declared idx] (into declared (when (even? idx) to-declare)))
+                            (assoc-in [::to-declare idx] to-declare))))
                       stats))
 
         {:keys [::bindings
