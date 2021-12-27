@@ -8,7 +8,7 @@ Use it, but don't abuse it.
 ;; deps.edn
 {:deps {github-akovantsev/blet
         {:git/url "https://github.com/akovantsev/blet"
-         :sha     "f9578183fb9829ac9b79faae062274ca83286fca"}}} ;; actual sha
+         :sha     "f71528368268222db56875405a6db75c2a4f532d"}}} ;; actual sha
 ```
 
 
