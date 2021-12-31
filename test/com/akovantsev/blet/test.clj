@@ -1,6 +1,7 @@
 (ns com.akovantsev.blet.test
   (:require
    [clojure.walk :as walk]
+   [com.akovantsev.blet.impl :as impl]
    [com.akovantsev.blet.core :as core]))
 
 
@@ -13,11 +14,11 @@
 
 
 ;; I failed to with-redefs `gensym` inside the `destructure`, so this
-;; resets generated symbols' counts, so example-based tests would work:
+;; resets generated symbols' counts, to make example-based tests work:
 (defn reset-gensym [form]
   (let [!n  (atom {})
         r!  (fn replace [form]
-              (if-let [[_ pref N] (re-matches #"(vec|seq|map|first)__(\d+)" (name form))]
+              (if-let [[_ pref N] (re-matches impl/GENSYM-RE (name form))]
                 (let [n (or (get @!n N)
                           (let [len (count @!n)]
                             (swap! !n assoc N len)
@@ -44,24 +45,24 @@
            2 y
            3 tail))))
   '(if 1
-     (let [vec__0   (range 10)
-           seq__1   (clojure.core/seq vec__0)
-           first__2 (clojure.core/first seq__1)
-           x        first__2]
+     (let* [vec__0   (range 10)
+            seq__1   (clojure.core/seq vec__0)
+            first__2 (clojure.core/first seq__1)
+            x        first__2]
        x)
      (if
-      2 (let [vec__0   (range 10)
-              seq__1   (clojure.core/seq vec__0)
-              seq__1   (clojure.core/next seq__1)
-              first__2 (clojure.core/first seq__1)
-              y        first__2]
+      2 (let* [vec__0   (range 10)
+               seq__1   (clojure.core/seq vec__0)
+               seq__1   (clojure.core/next seq__1)
+               first__2 (clojure.core/first seq__1)
+               y        first__2]
           y)
         (if 3
-          (let [vec__0 (range 10)
-                seq__1 (clojure.core/seq vec__0)
-                seq__1 (clojure.core/next seq__1)
-                seq__1 (clojure.core/next seq__1)
-                tail seq__1]
+          (let* [vec__0 (range 10)
+                 seq__1 (clojure.core/seq vec__0)
+                 seq__1 (clojure.core/next seq__1)
+                 seq__1 (clojure.core/next seq__1)
+                 tail seq__1]
             tail)
           nil))))
 
@@ -81,31 +82,31 @@
            2 b
            3 c))))
   '(if 1
-     (let [y      2
-           map__0 {}
-           map__0 (if (clojure.core/seq? map__0)
-                    (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
-                    map__0)
-           x      (clojure.core/get map__0 :com.akovantsev.blet.test/x)
-           a      (println x y)]
+     (let* [y      2
+            map__0 {}
+            map__0 (if (clojure.core/seq? map__0)
+                     (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
+                     map__0)
+            x      (clojure.core/get map__0 :com.akovantsev.blet.test/x)
+            a      (println x y)]
        a)
      (if 2
-       (let [map__0 {}
-             map__0 (if (clojure.core/seq? map__0)
-                      (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
-                      map__0)
-             x (clojure.core/get map__0 :com.akovantsev.blet.test/x)
-             z (clojure.core/get map__0 :z)
-             b (println x z)]
+       (let* [map__0 {}
+              map__0 (if (clojure.core/seq? map__0)
+                       (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
+                       map__0)
+              x (clojure.core/get map__0 :com.akovantsev.blet.test/x)
+              z (clojure.core/get map__0 :z)
+              b (println x z)]
          b)
        (if 3
-         (let [y      2
-               map__0 {}
-               map__0 (if (clojure.core/seq? map__0)
-                        (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
-                        map__0)
-               z      (clojure.core/get map__0 :z)
-               c      (println y z)]
+         (let* [y      2
+                map__0 {}
+                map__0 (if (clojure.core/seq? map__0)
+                         (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
+                         map__0)
+                z      (clojure.core/get map__0 :z)
+                c      (println y z)]
            c)
          nil))))
 

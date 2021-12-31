@@ -2,6 +2,9 @@
   (:require [com.akovantsev.blet.impl :as impl]))
 
 
+(def ^:dynamic DEFAULT-PRINT-LEN 32)
+
+
 (defmacro blet
   "Put all the bindings you want into single `let`,
    and then write compact readable `cond`.
@@ -33,3 +36,17 @@
   [bindings COND]
   (let [form# (impl/blet bindings COND)]
     `~form#))
+
+
+(defmacro blet!
+  [bindings COND]
+  (let [form# (impl/blet bindings COND {::impl/print-user-defined? true})]
+    `(binding [*print-length* (or *print-length* DEFAULT-PRINT-LEN)]
+       ~form#)))
+
+
+(defmacro blet!!
+  [bindings COND]
+  (let [form# (impl/blet bindings COND {::impl/print-all? true})]
+    `(binding [*print-length* (or *print-length* DEFAULT-PRINT-LEN)]
+       ~form#)))

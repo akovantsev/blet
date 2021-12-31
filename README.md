@@ -39,7 +39,7 @@ Use it, but don't abuse it.
       nil)))
 ```
 
-# Installation
+# Install
 ```clojure
 ;; in deps.edn
 {:deps {github-akovantsev/blet
