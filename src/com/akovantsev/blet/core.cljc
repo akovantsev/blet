@@ -40,13 +40,6 @@
 
 (defmacro blet!
   [bindings COND]
-  (let [form# (impl/blet bindings COND {::impl/print-user-defined? true})]
-    `(binding [*print-length* (or *print-length* DEFAULT-PRINT-LEN)]
-       ~form#)))
-
-
-(defmacro blet!!
-  [bindings COND]
-  (let [form# (impl/blet bindings COND {::impl/print-all? true})]
+  (let [form# (impl/blet bindings COND {::impl/print? true})]
     `(binding [*print-length* (or *print-length* DEFAULT-PRINT-LEN)]
        ~form#)))
