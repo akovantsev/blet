@@ -44,7 +44,7 @@ Use it, but don't abuse it.
 ;; in deps.edn
 {:deps {github-akovantsev/blet
         {:git/url "https://github.com/akovantsev/blet"
-         :sha     "f71528368268222db56875405a6db75c2a4f532d"}}} ;; actual sha
+         :sha     "4c220b758e2e118e03a574172b3b9ea124d84c37"}}} ;; actual sha
 ```
 
 # Core value proposition, `blet`
@@ -157,3 +157,46 @@ The only code simplification done is: unused entire bindings don't get included 
  (let [y 2] y)
  nil)
 ```
+
+# Wait, there is more!
+`blet` has a `blet!` variant with printing included, so you don't have to manually insert print statements while debugging.
+It limits `clojure.core/*print-length*` too, if it is `nil`:
+
+```clojure
+(blet! [[_ _ a & tail]   (range)
+        foo              (conj (range 5) a)]
+  (cond 
+    false   1
+    nil     2
+    (< a 0) (count tail) ;; gonna be huge!
+    true    (conj foo a)))
+
+;; prints out: 
+???   false
+???   nil
+<<<   vec__8594     (range)
+===   vec__8594     (0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 ...)
+<<<   seq__8595     (clojure.core/seq vec__8594)
+===   seq__8595     (0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 ...)
+<<<   seq__8595     (clojure.core/next seq__8595)
+===   seq__8595     (1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 ...)
+<<<   seq__8595     (clojure.core/next seq__8595)
+===   seq__8595     (2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 ...)
+<<<   first__8596   (clojure.core/first seq__8595)
+===   first__8596   2
+<<<   a             first__8596
+===   a             2
+???   (< a 0)
+???   true
+<<<   foo           (conj (range 5) a)
+===   foo           (2 0 1 2 3 4)
+>>>   (conj foo a)
+;; and returns:
+=> (2 2 0 1 2 3 4)
+```
+
+Where:
+- `<<<` is a binding form, as it appears in macroexpand
+- `===` is a printed value of the result of that binding
+- `???` is a predicate form
+- `>>>` is a winner branch form
