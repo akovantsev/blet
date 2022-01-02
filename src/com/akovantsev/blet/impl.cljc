@@ -7,7 +7,7 @@
 (def GENSYM-RE #"(vec|seq|map|first)__(\d+)")
 
 
-(defn blet [bindings COND & [{:as opts :keys [::print?]}]]
+(defn blet [cljs? bindings COND & [{:as opts :keys [::print?]}]]
   ;; same bindings asserts as in clojure.core/let:
   (assert (-> bindings vector?))
   (assert (-> bindings count even?))
@@ -22,8 +22,11 @@
                       (remove nil?)
                       (into #{})))
         space     (list 'quote (symbol " "))
+        destr     (if cljs?
+                    cljs.core/destructure
+                    clojure.core/destructure)
         pairs     (->> bindings
-                    (destructure)
+                    (destr)
                     (partition 2))
 
         maxlen    (when print?

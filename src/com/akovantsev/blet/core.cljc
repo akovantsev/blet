@@ -34,12 +34,12 @@
   ```
   "
   [bindings COND]
-  (let [form# (impl/blet bindings COND)]
+  (let [form# (impl/blet (:ns &env) bindings COND)]
     `~form#))
 
 
 (defmacro blet!
   [bindings COND]
-  (let [form# (impl/blet bindings COND {::impl/print? true})]
+  (let [form# (impl/blet (:ns &env) bindings COND {::impl/print? true})]
     `(binding [*print-length* (or *print-length* DEFAULT-PRINT-LEN)]
        ~form#)))
