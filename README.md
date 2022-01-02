@@ -44,7 +44,7 @@ Use it, but don't abuse it.
 ;; in deps.edn
 {:deps {github-akovantsev/blet
         {:git/url "https://github.com/akovantsev/blet"
-         :sha     "c38bfabac25a9510446026f58be2782a0bd515a8"}}} ;; actual sha
+         :sha     "2353efdd9228622737dbcdc085e292f611c86b2c"}}} ;; actual sha
 ```
 
 # Core value proposition, `blet`
@@ -77,7 +77,6 @@ It results in a wall of unresolved symbols, and a blind spot to (again, some) ID
 
 I am all for reading code carefully and for knowing what exactly is committed into a project 
 (~5? years of python development with no IDE support, besides the syntax highlighting).
-
 But sometimes you just want to rename things with a single hot-key press,
 and not go fulltext search on repo to make sure nobody has died.
 
