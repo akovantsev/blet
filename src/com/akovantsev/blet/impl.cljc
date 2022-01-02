@@ -22,6 +22,7 @@
                       (remove nil?)
                       (into #{})))
         space     (list 'quote (symbol " "))
+        ;; thanks! https://code.thheller.com/blog/shadow-cljs/2019/10/12/clojurescript-macros.html#gotcha-4-clj-macros
         destr     (if cljs?
                     cljs.core/destructure
                     clojure.core/destructure)

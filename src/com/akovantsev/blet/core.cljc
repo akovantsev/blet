@@ -42,5 +42,5 @@
   [bindings COND]
   (let [form# (impl/blet (:ns &env) bindings COND {::impl/print? true})
         len#  DEFAULT-PRINT-LEN]
-    `(binding [*print-length* (or *print-length* len#)]
+    `(binding [*print-length* (or *print-length* ~len#)]
        ~form#)))
