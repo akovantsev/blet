@@ -7,13 +7,13 @@
 (def GENSYM-RE #"(vec|seq|map|first)__(\d+)")
 
 
-(defn blet [cljs? bindings COND & [{:as opts :keys [::print?]}]]
+(defn blet [destructure-fn bindings cond-form & [{:as opts :keys [::print?]}]]
   ;; same bindings asserts as in clojure.core/let:
   (assert (-> bindings vector?))
   (assert (-> bindings count even?))
-  (assert (-> COND first (= 'cond)))
-  (assert (-> COND count odd?))
-  (let [branches  (vec (rest COND))
+  (assert (-> cond-form first (= 'cond)))
+  (assert (-> cond-form count odd?))
+  (let [branches  (vec (rest cond-form))
         branch?   #(and (or (vector? %) (seq? %) (map? %) (list? %)) (-> % first (not= 'quote)))
         form-deps (fn [form name->id]
                     (->> form
@@ -23,11 +23,8 @@
                       (into #{})))
         space     (list 'quote (symbol " "))
         ;; thanks! https://code.thheller.com/blog/shadow-cljs/2019/10/12/clojurescript-macros.html#gotcha-4-clj-macros
-        destr     (if cljs?
-                    cljs.core/destructure
-                    clojure.core/destructure)
         pairs     (->> bindings
-                    (destr)
+                    (destructure-fn)
                     (partition 2))
 
         maxlen    (when print?

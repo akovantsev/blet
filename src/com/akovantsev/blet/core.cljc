@@ -5,6 +5,12 @@
 (def ^:dynamic DEFAULT-PRINT-LEN 32)
 
 
+(defn -get-destructure-fn [env]
+  (if (:ns env)
+    (resolve 'cljs.core/destructure)
+    (resolve 'clojure.core/destructure)))
+
+
 (defmacro blet
   "Put all the bindings you want into single `let`,
    and then write compact readable `cond`.
@@ -33,14 +39,14 @@
          nil)))
   ```
   "
-  [bindings COND]
-  (let [form# (impl/blet (:ns &env) bindings COND)]
+  [bindings cond-form]
+  (let [form# (impl/blet (-get-destructure-fn &env) bindings cond-form)]
     `~form#))
 
 
 (defmacro blet!
-  [bindings COND]
-  (let [form# (impl/blet (:ns &env) bindings COND {::impl/print? true})
+  [bindings cond-form]
+  (let [form# (impl/blet (-get-destructure-fn &env) bindings cond-form {::impl/print? true})
         len#  DEFAULT-PRINT-LEN]
     `(binding [*print-length* (or *print-length* ~len#)]
        ~form#)))
