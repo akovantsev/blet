@@ -51,14 +51,17 @@
                           (-> m
                             (update-in [::bindings] conj [left right])
                             (cond->
-                              print? (assoc-in [::printings (count bindings)]
-                                       ['_ (list 'do
-                                             (list 'clojure.core/prn (list 'quote '<<<) space (padname left) space (list 'quote right))
-                                             (list 'clojure.core/prn (list 'quote '===) space (padname left) space left))]))
+                              print?
+                              (->
+                                (assoc-in [::print-before idx]
+                                  ['_ (list 'clojure.core/prn (list 'quote '<<<) space (padname left) space (list 'quote right))])
+                                (assoc-in [::print-after idx]
+                                  ['_ (list 'clojure.core/prn (list 'quote '===) space (padname left) space left)])))
                             (assoc-in [::name->binding-id left] idx)
                             (assoc-in [::binding-id->dep-ids idx] all-deps))))
                       {::bindings            []
-                       ::printings           {}
+                       ::print-before        {}
+                       ::print-after         {}
                        ::name->binding-id    {}
                        ::binding-id->dep-ids {}
                        ::declared            {}
@@ -85,7 +88,8 @@
                       stats))
 
         {:keys [::bindings
-                ::printings
+                ::print-before
+                ::print-after
                 ::to-declare]} stats
 
         wrap-let  (fn [branch-id form]
@@ -96,12 +100,10 @@
                           ['let*
                            (reduce
                              (fn [V id]
-                               (let [b (bindings id)
-                                     p (printings id)]
-                                 (-> V
-                                   (into b)
-                                   (cond->
-                                     p (into p)))))
+                               (-> V
+                                 (into (print-before id))
+                                 (into (bindings id))
+                                 (into (print-after id))))
                              [] dep-ids)]
                           [form]))))]
     ;(prn printings)
