@@ -44,7 +44,7 @@ Use it, but don't abuse it.
 ;; in deps.edn
 {:deps {github-akovantsev/blet
         {:git/url "https://github.com/akovantsev/blet"
-         :sha     "5d301b3cd6f70f147f4e85925932e61a888f16dc"}}} ;; actual sha
+         :sha     "723e4a2ff0820b60e6f012332bcbe3a94d108556"}}} ;; actual sha
 ```
 
 # Core value proposition, `blet`

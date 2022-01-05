@@ -42,7 +42,7 @@
 (defn get-defn-deps [locals [_sym & tail]]
   (let [[fname tail] (if (-> tail first symbol?) [(first tail) (rest tail)] [nil tail])
         tail         (if (-> tail first string?) (rest tail) tail)
-        [meta1 tail] (if (-> tail first map?)   [(first tail) (rest tail)] [nil tail])
+        [meta1 tail] (if (-> tail first map?)    [(first tail) (rest tail)] [nil tail])
         one?         (-> tail first vector?)
         [meta2 tail] (if (or one? (not (-> tail last map?)))
                        [nil tail]

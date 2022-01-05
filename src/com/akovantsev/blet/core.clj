@@ -2,7 +2,7 @@
   (:require [com.akovantsev.blet.impl :as impl]))
 
 
-(def ^:dynamic DEFAULT-PRINT-LEN 32) ;;fixme: move it inside the macro, and make available in cljs too
+(def ^:dynamic *default-print-len* 32) ;;fixme: move it inside the macro, and make available in cljs too
 
 
 (defn -get-destructure-fn [env]
@@ -49,7 +49,6 @@
 (defmacro blet!
   [bindings cond-form]
   (let [form# (binding [impl/*destructure* (-get-destructure-fn &env)]
-                (impl/blet bindings cond-form {::impl/print? true}))
-        len#  DEFAULT-PRINT-LEN]
-    `(binding [*print-length* (or *print-length* ~len#)]
+                (impl/blet bindings cond-form {::impl/print? true}))]
+    `(binding [*print-length* (or *print-length* ~*default-print-len*)]
        ~form#)))
