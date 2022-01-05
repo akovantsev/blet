@@ -61,8 +61,8 @@
 ;;todo as->
 (defmethod get-list-deps 'let [locals form] (get-let-deps locals form))
 (defmethod get-list-deps 'let* [locals form] (get-let-deps locals form))
-(defmethod get-list-deps 'letfn [locals form] (get-let-deps locals (macroexpand-1 form)))  ; => letfn*
-(defmethod get-list-deps 'letfn* [locals form] (get-let-deps locals form))
+;(defmethod get-list-deps 'letfn [locals form] (get-let-deps locals (macroexpand-1 form)))  ; => letfn*
+;(defmethod get-list-deps 'letfn* [locals form] (get-let-deps locals form))
 (defmethod get-list-deps 'for [locals form] (get-let-deps locals form)) ;;fixme :let :when keywords support
 (defmethod get-list-deps 'loop [locals form] (get-let-deps locals form))
 (defmethod get-list-deps 'dotimes [locals form] (get-let-deps locals form))
