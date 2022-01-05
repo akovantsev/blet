@@ -84,7 +84,6 @@ and not go fulltext search on repo to make sure nobody has died.
 # TODO
 - more convoluted poster examples
 - always inlude `_` bindings, to allow everyone's best friend `(let [_ (println stuff)])`, and unconditional sideeffects in general.
-- detect shadowing of declared, but unused locals in nested forms like `let/fn/letfn/binding/with-redefs/etc.`
 - ~~support extra `cond` branch as default (like in `case`).~~
   For now, I'd like to preserve both let's and cond's original syntax, so you could just change `blet` to `let` for pure forms, and that's it.
 
