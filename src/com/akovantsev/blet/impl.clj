@@ -1,12 +1,108 @@
 (ns com.akovantsev.blet.impl
-  (:require [clojure.string :as str]))
+  (:require
+   [clojure.set :as set]
+   [clojure.string :as str]))
 
 
-(def ^:dynamic *destructure*)
-
-;; todo: detect nested bindings (let, fn, binding, ...) shadowing the
-;; symbols defined in blet, to avoid unused (potentially sideeffectful) declarations
 ;; todo: always include `_` bindings, for things like print/log
+;; todo: overridable print function
+;; todo: gen blet id so nested/looped blet! outputs would not mix
+
+
+(def ^:dynamic *destructure*) ;; destructure is different for clj and cljs
+
+
+(declare get-form-deps)
+
+(defmulti get-list-deps (fn [locals [f & args :as form]] f))
+
+(defmethod get-list-deps :default [locals form] (get-form-deps locals (vec form)))
+(defmethod get-list-deps `quote [locals form] #{})
+
+
+(defn get-let-deps [locals [_ bindings & body]]
+  (let [[locals deps] (->> bindings
+                        (*destructure*)
+                        (partition 2)
+                        (reduce
+                          (fn rf [[locals deps] [local form]]
+                            [(disj locals local) (into deps (get-form-deps locals form))])
+                          [locals #{}]))]
+    (into deps (get-form-deps locals (vec body)))))
+
+
+(defn get-def-deps [locals form]
+  (let [f (fn
+            ([_ sym] #{})
+            ([_ sym init] (get-form-deps locals init))
+            ([_ sym doc init] (get-form-deps locals init)))]
+    (apply f form)))
+
+
+(defn get-defn-deps [locals [_sym & tail]]
+  (let [[fname tail] (if (-> tail first symbol?) [(first tail) (rest tail)] [nil tail])
+        tail         (if (-> tail first string?) (rest tail) tail)
+        [meta1 tail] (if (-> tail first map?)   [(first tail) (rest tail)] [nil tail])
+        one?         (-> tail first vector?)
+        [meta2 tail] (if (or one? (not (-> tail last map?)))
+                       [nil tail]
+                       [(last tail) (butlast tail)])
+        arities      (if one? [tail] tail)
+        locals       (disj locals fname)
+        arg-syms     (fn as [args] (map first (partition 2 (*destructure* [args nil]))))
+        parse-arity  (fn pa [[args & body]]
+                       (get-form-deps (reduce disj locals (arg-syms args)) (vec body)))]
+    (apply set/union
+      (get-form-deps locals meta1)
+      (get-form-deps locals meta2)
+      (map parse-arity arities))))
+
+
+;;todo as->
+(defmethod get-list-deps 'let [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'let* [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'letfn [locals form] (get-let-deps locals (macroexpand-1 form)))  ; => letfn*
+(defmethod get-list-deps 'letfn* [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'for [locals form] (get-let-deps locals form)) ;;fixme :let :when keywords support
+(defmethod get-list-deps 'loop [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'dotimes [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'binding [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'if-let [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'if-some [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'when-let [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'when-some [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'when-first [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'with-open [locals form] (get-let-deps locals form))
+(defmethod get-list-deps 'with-redefs [locals form] (get-let-deps locals form))
+
+(defmethod get-list-deps 'def [locals form] (get-def-deps locals form))
+(defmethod get-list-deps 'defonce [locals form] (get-def-deps locals form))
+
+(defmethod get-list-deps 'fn* [locals form] (get-defn-deps locals form)) ;; #(+ 1 %)
+(defmethod get-list-deps 'fn [locals form] (get-defn-deps locals form))
+(defmethod get-list-deps 'defn [locals form] (get-defn-deps locals form))
+(defmethod get-list-deps 'defn- [locals form] (get-defn-deps locals form))
+
+(defmethod get-list-deps `defmethod [locals [_defm mname dispval & fn-tail]]
+  (set/union
+    (get-form-deps locals dispval)
+    (get-defn-deps (disj locals mname) [`fn fn-tail])))
+
+
+(defmethod get-list-deps `catch [locals [_catch _ex as & body]] (get-form-deps (disj locals as) (vec body)))
+
+
+(defn get-form-deps [locals form]
+  (assert (set? locals))
+  (cond
+    (empty? locals) #{}
+    (symbol? form)  (set/intersection locals #{form})
+    (vector? form)  (reduce into #{} (map #(get-form-deps locals %) form))
+    (map? form)     (get-form-deps locals (into [] cat form))
+    (set? form)     (get-form-deps locals (vec form))
+    (seq? form)     (get-list-deps locals form)
+    :else           #{}))
+
 
 
 (defn blet [bindings cond-form & [{:as opts :keys [::print?]}]]
@@ -16,13 +112,12 @@
   (assert (-> cond-form first (= 'cond)))
   (assert (-> cond-form count odd?))
   (let [branches  (vec (rest cond-form))
-        branch?   #(and (or (vector? %) (seq? %) (map? %) (list? %)) (-> % first (not= 'quote)))
         form-deps (fn [form name->id]
-                    (->> form
-                      (tree-seq branch? seq)
-                      (map name->id)
-                      (remove nil?)
-                      (into #{})))
+                    (let [locals  (-> name->id keys set)]
+                      (->> form
+                        (get-form-deps locals)
+                        (map name->id)
+                        (set))))
         space     (list 'quote (symbol " "))
         pairs     (->> bindings
                     (*destructure*)

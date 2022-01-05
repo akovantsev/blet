@@ -69,6 +69,7 @@
             tail)
           nil))))
 
+
 (assert= "example"
   (reset-gensym
     (macroexpand-1
@@ -121,6 +122,36 @@
                 c      (println y z)]
            c)
          nil))))
+
+
+(assert= "test code elimination with locals shadowing 1"
+  (macroexpand-1
+    '(core/blet [x 1 y (fn [x] x)] (cond 1 (y 1))))
+  '(if 1 (let* [y (fn [x] x)] (y 1)) nil))
+
+
+(assert= "locals shadowing 2"
+  (macroexpand-1
+    '(core/blet [x 1 y (let [x 2] x)] (cond 1 (y 1))))
+  '(if 1 (let* [y (let [x 2] x)] (y 1)) nil))
+
+
+(assert= "locals shadowing 3"
+  (macroexpand-1
+    '(core/blet [x 1 y (binding [x 2] x)] (cond 1 (y 1))))
+  '(if 1 (let* [y (binding [x 2] x)] (y 1)) nil))
+
+
+(assert= "locals shadowing 4"
+  (macroexpand-1
+    '(core/blet [x 1 y (for [x [1 2]] x)] (cond 1 y)))
+  '(if 1 (let* [y (for [x [1 2]] x)] y) nil))
+
+
+(assert= "locals shadowing 5"
+  (macroexpand-1
+    '(core/blet [x 1 y (fn x [a] a)] (cond 1 (y 1))))
+  '(if 1 (let* [y (fn x [a] a)] (y 1)) nil))
 
 
 (assert= "dont eval let bindings before cond dispatch"
