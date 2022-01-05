@@ -1,16 +1,18 @@
 (ns com.akovantsev.blet.test
   (:require
    [clojure.walk :as walk]
-   [com.akovantsev.blet.impl :as impl]
+   [#?(:cljs cljs.pprint :clj clojure.pprint) :refer [pprint]]
    [com.akovantsev.blet.core :as core]))
 
+
+(def GENSYM-RE #"(vec|seq|map|first)__(\d+)")
 
 (defn assert= [msg x y]
   (assert (= x y)
     (str msg "\n"
-      (with-out-str (clojure.pprint/pprint x))
-      "\nnot=\n"
-      (with-out-str (clojure.pprint/pprint y)))))
+      (with-out-str (pprint x))
+      "\nnot=\n\n"
+      (with-out-str (pprint y)))))
 
 
 ;; I failed to with-redefs `gensym` inside the `destructure`, so this
@@ -18,7 +20,7 @@
 (defn reset-gensym [form]
   (let [!n  (atom {})
         r!  (fn replace [form]
-              (if-let [[_ pref N] (re-matches impl/GENSYM-RE (name form))]
+              (if-let [[_ pref N] (re-matches GENSYM-RE (name form))]
                 (let [n (or (get @!n N)
                           (let [len (count @!n)]
                             (swap! !n assoc N len)
@@ -30,10 +32,11 @@
     (walk/postwalk f form)))
 
 
-(let [form '(let [{:keys [:x ::y] [a b & tail] :z} {}])]
-  (assert= "reset-gensym"
-    (reset-gensym (macroexpand-1 form))
-    (reset-gensym (macroexpand-1 form))))
+
+(assert= "reset-gensym"
+  ;; copypaste because of macroexpand-1 implementation in cljs
+  (reset-gensym (macroexpand-1 '(let [{:keys [:x ::y] [a b & tail] :z} {}])))
+  (reset-gensym (macroexpand-1 '(let [{:keys [:x ::y] [a b & tail] :z} {}]))))
 
 
 (assert= "destructure support example 1"
@@ -84,28 +87,37 @@
   '(if 1
      (let* [y      2
             map__0 {}
-            map__0 (if (clojure.core/seq? map__0)
-                     (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
-                     map__0)
-            x      (clojure.core/get map__0 :com.akovantsev.blet.test/x)
+            map__0 #?(:clj (if (clojure.core/seq? map__0)
+                             (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
+                             map__0)
+                      :cljs (if (cljs.core/implements? cljs.core/ISeq map__0)
+                              (clojure.core/apply cljs.core/hash-map map__0)
+                              map__0))
+            x      (#?(:clj clojure.core/get :cljs cljs.core/get) map__0 :com.akovantsev.blet.test/x)
             a      (println x y)]
        a)
      (if 2
        (let* [map__0 {}
-              map__0 (if (clojure.core/seq? map__0)
-                       (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
-                       map__0)
-              x (clojure.core/get map__0 :com.akovantsev.blet.test/x)
-              z (clojure.core/get map__0 :z)
+              map__0 #?(:clj (if (clojure.core/seq? map__0)
+                               (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
+                               map__0)
+                        :cljs (if (cljs.core/implements? cljs.core/ISeq map__0)
+                                (clojure.core/apply cljs.core/hash-map map__0)
+                                map__0))
+              x (#?(:clj clojure.core/get :cljs cljs.core/get) map__0 :com.akovantsev.blet.test/x)
+              z (#?(:clj clojure.core/get :cljs cljs.core/get) map__0 :z)
               b (println x z)]
          b)
        (if 3
          (let* [y      2
                 map__0 {}
-                map__0 (if (clojure.core/seq? map__0)
-                         (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
-                         map__0)
-                z      (clojure.core/get map__0 :z)
+                map__0 #?(:clj (if (clojure.core/seq? map__0)
+                                 (clojure.lang.PersistentHashMap/create (clojure.core/seq map__0))
+                                 map__0)
+                          :cljs (if (cljs.core/implements? cljs.core/ISeq map__0)
+                                  (clojure.core/apply cljs.core/hash-map map__0)
+                                  map__0))
+                z      (#?(:clj clojure.core/get :cljs cljs.core/get) map__0 :z)
                 c      (println y z)]
            c)
          nil))))
@@ -136,21 +148,4 @@
       (do (swap! A + 50) false) c)))
 
 
-
-(def test-bindings
-  '[{:keys [::x :z] :strs [yolo] :as foo :syms [sup]} 1
-    zzz 10
-    [{:as                                     as1
-      top1                                    10,
-      top2                                    10
-      [v1 {:as v2 :keys [v2k1 :v2k2 ::v2k3]}] 2
-      ::keys                                  [qkeys1 qkeys2]
-      :strs                                   [str1 str2]
-      ::syms                                  [qsyms1 qsyms2]
-      :syms                                   [foo/sym1 sym2],
-      :keys                                   [:deps.blet/keys1 :keys2 keys3]
-      :or                                     {or1 1
-                                               or2 2}}
-     [v21 v22 & v2tail]
-     v12
-     & v1tail]    {}])
+(println "Tests are done with asserts, so if this is printed out – all is good.")

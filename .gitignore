@@ -1,3 +1,5 @@
 .idea
 .nrepl-port
-/lib
+.cpcache
+lib
+cljs-test-runner-out

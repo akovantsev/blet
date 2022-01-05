@@ -2,10 +2,11 @@
   (:require [com.akovantsev.blet.impl :as impl]))
 
 
-(def ^:dynamic DEFAULT-PRINT-LEN 32)
+(def ^:dynamic DEFAULT-PRINT-LEN 32) ;;fixme: move it inside the macro, and make available in cljs too
 
 
 (defn -get-destructure-fn [env]
+  ;; thanks! https://code.thheller.com/blog/shadow-cljs/2019/10/12/clojurescript-macros.html#gotcha-4-clj-macros
   (if (:ns env)
     (resolve 'cljs.core/destructure)
     (resolve 'clojure.core/destructure)))
@@ -40,13 +41,15 @@
   ```
   "
   [bindings cond-form]
-  (let [form# (impl/blet (-get-destructure-fn &env) bindings cond-form)]
+  (let [form# (binding [impl/*destructure* (-get-destructure-fn &env)]
+                (impl/blet bindings cond-form))]
     `~form#))
 
 
 (defmacro blet!
   [bindings cond-form]
-  (let [form# (impl/blet (-get-destructure-fn &env) bindings cond-form {::impl/print? true})
+  (let [form# (binding [impl/*destructure* (-get-destructure-fn &env)]
+                (impl/blet bindings cond-form {::impl/print? true}))
         len#  DEFAULT-PRINT-LEN]
     `(binding [*print-length* (or *print-length* ~len#)]
        ~form#)))
