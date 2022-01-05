@@ -1,5 +1,7 @@
 (ns com.akovantsev.blet.core
-  (:require [com.akovantsev.blet.impl :as impl]))
+  (:require [com.akovantsev.blet.impl :as impl])
+  #?(:cljs (:require-macros [com.akovantsev.blet.impl :refer [blet blet!]])))
+
 
 
 (def ^:dynamic *default-print-len* 32)
