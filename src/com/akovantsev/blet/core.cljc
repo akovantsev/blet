@@ -1,6 +1,6 @@
 (ns com.akovantsev.blet.core
   (:require [com.akovantsev.blet.impl :as impl])
-  #?(:cljs (:require-macros [com.akovantsev.blet.impl :refer [blet blet!]])))
+  #?(:cljs (:require-macros [com.akovantsev.blet.core :refer [blet blet!]])))
 
 
 
