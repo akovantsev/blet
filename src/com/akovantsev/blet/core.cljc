@@ -2,7 +2,7 @@
   (:require [com.akovantsev.blet.impl :as impl]))
 
 
-(def ^:dynamic *default-print-len* 32) ;;fixme: move it inside the macro, and make available in cljs too
+(def ^:dynamic *default-print-len* 32)
 
 
 (defn -get-destructure-fn [env]
