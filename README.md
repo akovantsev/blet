@@ -44,7 +44,7 @@ Use it, but don't abuse it.
 ;; in deps.edn
 {:deps {github-akovantsev/blet
         {:git/url "https://github.com/akovantsev/blet"
-         :sha     "723e4a2ff0820b60e6f012332bcbe3a94d108556"}}} ;; actual sha
+         :sha     "2a8dd6f376dcb3e8dca37bde8a10ec1aa168e0ee"}}} ;; actual sha
 ```
 
 # Core value proposition, `blet`
@@ -79,30 +79,6 @@ I am all for reading code carefully and for knowing what exactly is committed in
 (~5? years of python development with no IDE support, besides the syntax highlighting).
 But sometimes you just want to rename things with a single hot-key press,
 and not go fulltext search on repo to make sure nobody has died.
-
-
-# Weaknesses
-
-- Does not (yet) detects nested bindings, which shadow, but not use symbols defined earlier
-```clojure
-(macroexpand-1 
-  '(blet [x (sideeffect!)
-          y (let [x 2] x)]
-     (cond
-       true y)))
-
-;; =>
-(if true 
-  (let [x (sideeffect!)
-        y (let [x 2] x)] y)
-  nil)
-
-;; when really it should be this, since x is never used 
-;; (setting aside entire sideeffect-in-let-binding-thing talk for now):
-(if true 
-  (let [y (let [x 2] x)] y)
-  nil)
-``` 
 
 
 # TODO
