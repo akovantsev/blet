@@ -1,16 +1,19 @@
 (ns com.akovantsev.blet.impl
   (:require
    [clojure.set :as set]
-   [clojure.string :as str]))
+   [com.akovantsev.blet.print :as bp]))
 
 
 ;; todo: always include `_` bindings, for things like print/log
-;; todo: overridable print function
-;; todo: gen blet id so nested/looped blet! outputs would not mix
 
 
 (def ^:dynamic *destructure*) ;; destructure is different for clj and cljs
 
+;; review: binding does not work for ^:dynamic here, for some reason:
+(defn gen-blet-id [] (list 'quote (gensym "blet__")))
+
+
+;;; form deps resolution ;;;
 
 (declare get-form-deps)
 
@@ -105,6 +108,8 @@
 
 
 
+;;; blet impl ;;;
+
 (defn blet [bindings cond-form & [{:as opts :keys [::print?]}]]
   ;; same bindings asserts as in clojure.core/let:
   (assert (-> bindings vector?))
@@ -118,7 +123,7 @@
                         (get-form-deps locals)
                         (map name->id)
                         (set))))
-        space     (list 'quote (symbol " "))
+        blet-id   (gen-blet-id)
         pairs     (->> bindings
                     (*destructure*)
                     (partition 2))
@@ -127,11 +132,6 @@
                     (->> pairs
                       (map #(-> % first name count))
                       (reduce max)))
-        padname   (fn padname [sym]
-                    (list 'quote (symbol
-                                   (str/join
-                                     (take maxlen
-                                       (concat (name sym) (repeat " ")))))))
 
         stats     (->> pairs
                     (map-indexed vector)
@@ -150,9 +150,9 @@
                               print?
                               (->
                                 (assoc-in [::print-before idx]
-                                  ['_ (list 'clojure.core/prn (list 'quote '<<<) space (padname left) space (list 'quote right))])
+                                  ['_ (bp/printfn ::bp/binding-form blet-id maxlen left (list 'quote right))])
                                 (assoc-in [::print-after idx]
-                                  ['_ (list 'clojure.core/prn (list 'quote '===) space (padname left) space left)])))
+                                  ['_ (bp/printfn ::bp/binding-evaled blet-id maxlen left left)])))
                             (assoc-in [::name->binding-id left] idx)
                             (assoc-in [::binding-id->dep-ids idx] all-deps))))
                       {::bindings            []
@@ -189,19 +189,15 @@
                 ::to-declare]} stats
 
         wrap-let  (fn [branch-id form]
-                    (let [dep-ids (->> branch-id (to-declare) (sort <))]
+                    (let [dep-ids (->> branch-id (to-declare) (sort <))
+                          wrap-pr (fn [V id]
+                                    (-> V
+                                      (into (print-before id))
+                                      (into (bindings id))
+                                      (into (print-after id))))]
                       (if (empty? dep-ids)
                         form
-                        (concat
-                          ['let*
-                           (reduce
-                             (fn [V id]
-                               (-> V
-                                 (into (print-before id))
-                                 (into (bindings id))
-                                 (into (print-after id))))
-                             [] dep-ids)]
-                          [form]))))]
+                        (list 'let* (reduce wrap-pr [] dep-ids) form))))]
     ;(prn printings)
     ;(clojure.pprint/pprint [stats branches]))
     (loop [idx  (-> branches count dec)
@@ -212,9 +208,11 @@
             branch (if-not print?
                      branch
                      (list 'do
-                       (list 'clojure.core/prn (list 'quote (if pred? '??? '>>>)) space (list 'quote branch))
+                       (bp/printfn (if pred? ::bp/pred-form ::bp/branch-form) blet-id maxlen nil (list 'quote branch))
                        branch))]
         (cond
-          (= -1 idx)  form
+          (= -1 idx)  (if print?
+                        (list 'do (bp/printfn ::bp/start blet-id nil nil nil) form)
+                        form)
           res?        (recur (dec idx) (list (wrap-let idx branch) form))
           pred?       (recur (dec idx) (wrap-let idx (concat ['if branch] form))))))))
