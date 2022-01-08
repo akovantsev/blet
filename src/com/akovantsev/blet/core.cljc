@@ -1,14 +1,11 @@
 (ns com.akovantsev.blet.core
-  (:require [com.akovantsev.blet.impl :as impl])
+  (:require
+    [com.akovantsev.blet.impl :as impl]
+    [com.akovantsev.blet.env :as env])
   #?(:cljs (:require-macros [com.akovantsev.blet.core :refer [blet blet!]])))
 
 
-
-(def ^:dynamic *default-print-len* 32)
-
-
 (defn -get-destructure-fn [env]
-  ;; thanks! https://code.thheller.com/blog/shadow-cljs/2019/10/12/clojurescript-macros.html#gotcha-4-clj-macros
   (if (:ns env)
     (resolve 'cljs.core/destructure)
     (resolve 'clojure.core/destructure)))
@@ -43,14 +40,13 @@
   ```
   "
   [bindings cond-form]
-  (let [form# (binding [impl/*destructure* (-get-destructure-fn &env)]
+  (let [form# (binding [env/*js?* (env/js? &env)]
                 (impl/blet bindings cond-form))]
     `~form#))
 
 
 (defmacro blet!
   [bindings cond-form]
-  (let [form# (binding [impl/*destructure* (-get-destructure-fn &env)]
+  (let [form# (binding [env/*js?* (env/js? &env)]
                 (impl/blet bindings cond-form {::impl/print? true}))]
-    `(binding [*print-length* (or *print-length* ~*default-print-len*)]
-       ~form#)))
+    `~form#))

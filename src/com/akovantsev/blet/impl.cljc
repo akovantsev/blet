@@ -1,6 +1,7 @@
 (ns com.akovantsev.blet.impl
   (:require
    [clojure.set :as set]
+   [com.akovantsev.blet.env :as env]
    [com.akovantsev.blet.print :as bp]))
 
 
@@ -8,6 +9,11 @@
 
 
 (def ^:dynamic *destructure*) ;; destructure is different for clj and cljs
+
+(defn -get-destructure-fn []
+  (if env/*js?*
+    (resolve 'cljs.core/destructure)
+    (resolve 'clojure.core/destructure)))
 
 ;; review: binding does not work for ^:dynamic here, for some reason:
 (defn gen-blet-id [] (list 'quote (gensym "blet__")))
@@ -111,6 +117,7 @@
 ;;; blet impl ;;;
 
 (defn blet [bindings cond-form & [{:as opts :keys [::print?]}]]
+ (binding [*destructure* (-get-destructure-fn)]
   ;; same bindings asserts as in clojure.core/let:
   (assert (-> bindings vector?))
   (assert (-> bindings count even?))
@@ -215,4 +222,4 @@
                         (list 'do (bp/printfn ::bp/start blet-id nil nil nil) form)
                         form)
           res?        (recur (dec idx) (list (wrap-let idx branch) form))
-          pred?       (recur (dec idx) (wrap-let idx (concat ['if branch] form))))))))
+          pred?       (recur (dec idx) (wrap-let idx (concat ['if branch] form)))))))))

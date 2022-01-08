@@ -2,6 +2,7 @@
   (:require
    [clojure.walk :as walk]
    [#?(:cljs cljs.pprint :clj clojure.pprint) :refer [pprint]]
+   [com.akovantsev.blet.print :as p]
    [com.akovantsev.blet.core :as core]))
 
 
@@ -178,5 +179,24 @@
       (do (swap! A + 20) true)  b
       (do (swap! A + 50) false) c)))
 
+
+(println "Testing blet! inside loop due to: 'Cannot recur across try.'")
+(loop []
+  ;; if print-len binding does not work - gonna try to print infinite range:
+  (core/blet! [a (range)]
+    (cond (empty? a) (recur))))
+
+(println "\nAnd now with shorter *default-print-len*:")
+(binding [p/*default-print-len* 5]
+  (loop []
+    (core/blet! [a (range)]
+      (cond (empty? a) (recur)))))
+
+(println "\nAnd now with default *print-length*:")
+(binding [*print-length*        10
+          p/*default-print-len* 5]
+  (loop []
+    (core/blet! [a (range)]
+      (cond (empty? a) (recur)))))
 
 (println "Tests are done with asserts, so if this is printed out – all is good.")
