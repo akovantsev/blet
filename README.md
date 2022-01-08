@@ -116,7 +116,7 @@ Use it, but don't abuse it.
 ;; in deps.edn
 {:deps {github-akovantsev/blet
         {:git/url "https://github.com/akovantsev/blet"
-         :sha     "797a0607a96d92ab52cb88373a91e316bd92321d"}}} ;; actual sha
+         :sha     "5aca99d960406878bae5680e4e672a5084adfc6b"}}} ;; actual sha
 ```
 
 ```clojure
