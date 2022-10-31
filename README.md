@@ -1,3 +1,7 @@
+```
+⚠️ blet v2 is of beta quality. see tests. Docs – TBA.
+```
+
 # blet
 Even better let+cond clojure macro.
 
