@@ -6,6 +6,19 @@
 
 (def ^:dynamic *default-print-len* 32)
 
+;; Forms are no longer inlined in print statements because
+;; it was too easy to hit jvm's method's 64kb code_length limit:
+;; https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.9.1
+;; > Syntax error (IndexOutOfBoundsException) compiling fn*
+;; > Method code too large!
+;; So now, prints are done as function call which
+;; looks up form in atom under blet-id > form-name
+;; Fingers crossed! :D
+(def !forms (atom {}))
+
+(defn reg-form! [blet-name form-name form]
+  (swap! !forms assoc-in [blet-name form-name] form))
+
 
 (defn pad [sym maxlen]
   (str/join
@@ -13,59 +26,76 @@
       (concat (when sym (name sym)) (repeat " ")))))
 
 (defn print-start [file-and-line]
-  (list 'clojure.core/prn (list 'quote (symbol (str/join (repeat 50 ".")))) (list 'symbol file-and-line)))
+  (prn (symbol (str/join (repeat 50 "."))) (symbol file-and-line)))
 
 
-(defn printfn [tag cfg label val]
-  (let [{::keys [blet-id maxlen]} cfg]
-  ;; binding is here around every print statement, and not around entire blet!,
-  ;; because binding inside e.g. loops causes "Cannot recur across try", see tests.
-    (list 'binding ['clojure.core/*print-length* (list `or
-                                                   'clojure.core/*print-length*
-                                                   'com.akovantsev.blet.print/*default-print-len*)]
-      (list 'clojure.core/prn blet-id (list 'quote (symbol (str "  " tag "  " (pad label maxlen) "  "))) val))))
+(defn print-value [tag blet-name maxlen label value]
+  (let [label+ (str "  " tag "  " (pad label maxlen) "  ")]
+    ;; binding is here around every print statement, and not around entire blet!,
+    ;; because binding inside e.g. loops causes "Cannot recur across try", see tests.
+    (binding [*print-length* (or *print-length* *default-print-len*)]
+      (prn (symbol blet-name) (symbol label+) value))))
+
+(defn print-form [tag blet-id maxlen sym]
+  (let [label (if (symbol? sym) sym nil)
+        form  (get-in @!forms [blet-id sym])]
+    (print-value tag blet-id maxlen label form)))
+
 
 (declare insert-prints)
 (defn insert-prints-seq-default [form cfg] (map #(insert-prints % cfg) form))
-(defn insert-prints-seq-let     [form cfg]
+(defn insert-prints-seq-let     [form [blet-name maxlen :as cfg]]
   (let [[let_ pairs & bodies] form
-        body   (u/bodies->body bodies)
-        __     (gensym "__")
-        wrap   (fn [[sym expr]]
-                 [__ (printfn (symbol "let ") cfg sym (list 'quote expr))
-                  sym (insert-prints expr cfg)
-                  __ (printfn (symbol "=   ") cfg sym sym)])
-        pairs+ (->> pairs (partition 2) (mapcat wrap) (vec))]
+        body      (u/bodies->body bodies)
+        __        (gensym "__")
+        body-name (name (gensym "body__"))
+        wrap      (fn [[sym expr]]
+                    (let [sym-name (name sym)]
+                      (reg-form! blet-name sym-name expr)
+                      [__  (list `print-form "let " blet-name maxlen sym-name)
+                       sym (insert-prints expr cfg)
+                       __  (list `print-value "=   " blet-name maxlen sym-name sym)]))
+        pairs+    (->> pairs (partition 2) (mapcat wrap) (vec))]
+    (reg-form! blet-name body-name body)
     (list let_ pairs+
-      (printfn (symbol "body") cfg nil (list 'quote body))
+      (list `print-form "body" blet-name maxlen body-name)
       (insert-prints body cfg))))
 
 
-(defn insert-prints-seq-if [form cfg]
+(defn insert-prints-seq-if [form [blet-name maxlen :as cfg]]
   (let [[if_ pred then else] form
-        pred-sym (gensym "pred__")]
+        pred-sym (gensym "pred__")
+        pred-name (name (gensym "else__"))
+        then-name (name (gensym "else__"))
+        else-name (name (gensym "else__"))]
+    (reg-form! blet-name pred-name pred)
+    (reg-form! blet-name then-name then)
+    (reg-form! blet-name else-name else)
     (list 'do
-      (printfn (symbol "if  ") cfg nil (list 'quote pred))
+      (list `print-form "if  " blet-name maxlen pred-name)
       (list 'let* [pred-sym (insert-prints pred cfg)]
-        (printfn (symbol "=   ") cfg nil pred-sym)
+        (list `print-value "=   " blet-name maxlen nil pred-sym)
         (list 'if pred-sym
-          (printfn (symbol "then") cfg nil (list 'quote then))
-          (printfn (symbol "else") cfg nil (list 'quote else)))
+          (list `print-form "then" blet-name maxlen then-name)
+          (list `print-form "else" blet-name maxlen else-name))
         (list if_ pred-sym
           (insert-prints then cfg)
           (insert-prints else cfg))))))
 
 
-(defn insert-prints-seq-case [form cfg]
+(defn insert-prints-seq-case [form [blet-name maxlen :as cfg]]
   (let [[case_ sym & _] form
         wrap-branch  (fn [prefix branch]
-                       (list 'do
-                         (printfn (symbol prefix) cfg nil (list 'quote branch))
-                         (insert-prints branch cfg)))
+                       (let [branch-name (name (gensym "branch__"))]
+                         (reg-form! blet-name branch-name branch)
+                         (list 'do
+                           (list `print-form prefix blet-name maxlen branch-name)
+                           (insert-prints branch cfg))))
         wrap-then   #(wrap-branch "then" %)
-        wrap-else   #(wrap-branch "else" %)]
+        wrap-else   #(wrap-branch "else" %)
+        sym-name    (name sym)]
     (list 'do
-      (printfn (symbol "case") cfg sym sym)
+      (list `print-value "case" blet-name maxlen sym-name sym)
       (u/update-case form identity wrap-then wrap-else))))
 
 
@@ -86,19 +116,23 @@
 (def insert-prints (u/make-stateful-walker nil insert-prints-seq))
 
 (defn insert-prints-init [form orig file-line]
-  (let [blet-id (list 'quote (gensym "blet__"))
-        maxlen  (->> form
-                  (tree-seq coll? seq)
-                  (filter u/let*?)
-                  (mapcat second)
-                  (partition 2)
-                  (map #(-> % first str count))
-                  (reduce max 0))
-        cfg     {::blet-id blet-id ::maxlen maxlen}]
+  (let [blet-name (name (gensym "blet__"))
+        orig-name "orig"
+        form-name "form"
+        maxlen    (->> form
+                    (tree-seq coll? seq)
+                    (filter u/let*?)
+                    (mapcat second)
+                    (partition 2)
+                    (map #(-> % first str count))
+                    (reduce max 0))
+        cfg     [blet-name maxlen]]
+    (reg-form! blet-name orig-name orig)
+    (reg-form! blet-name form-name form)
     (list (vary-meta 'do assoc ::printed? true)
-      (print-start file-line)
-      (printfn (symbol "src ") cfg nil (list 'quote orig))
-      (printfn (symbol "    ") cfg nil (list 'quote form))
+      (list `print-start file-line)
+      (list `print-form "src " blet-name maxlen orig-name)
+      (list `print-form "    " blet-name maxlen form-name)
       ;; cant print blet output ~ (let [bletsym expr] (print bletsym) bletsym)
       ;; due to "Can only recur from tail position" when blet! is inside loop:
       (insert-prints form cfg))))

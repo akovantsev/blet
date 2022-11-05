@@ -499,6 +499,7 @@
   [(blet! [b 2]
      [b])])
 
+(assert= "long cases do not blow up (because of sorted-map in case*):" 1 (blet [] (case 1, 1 1 2 2 3 3 4 4 5 5 6 6 7 7)))
 
 (reset-gensym
   (macroexpand

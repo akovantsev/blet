@@ -8,23 +8,21 @@
 
 (defn macroexpand-all
   "Like `cyrik.cljs-macroexpand.expand/macroexpand-all`, but does not expand quoted forms"
-  ([form env]
+  ([form & [env]]
    (binding [m/*environment* env]
-     (macroexpand-all form)))
-  ([form]
-   (let [md       (meta form)
-         quoted?  (and (seq? form) (-> form first (= 'quote)))
-         form*    (if-not (seq? form)
-                    form
-                    (try
-                      (m/normalized-macroexpand form)
-                      (catch ClassNotFoundException e form)))
-         expanded (if-not quoted?
-                    (walk/walk macroexpand-all identity form*)
-                    form*)]
-     (if md
-       (m/merge-meta expanded (macroexpand-all md))
-       expanded))))
+     (let [md       (meta form)
+           quoted?  (and (seq? form) (-> form first (= 'quote)))
+           form*    (if-not (seq? form)
+                      form
+                      (try
+                        (m/normalized-macroexpand form)
+                        (catch ClassNotFoundException e form)))
+           expanded (if-not quoted?
+                      (walk/walk macroexpand-all identity form*)
+                      form*)]
+       (if md
+         (m/merge-meta expanded (macroexpand-all md))
+         expanded)))))
 
 
 (defmacro blet
