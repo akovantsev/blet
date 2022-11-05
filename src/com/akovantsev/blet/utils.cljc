@@ -143,7 +143,7 @@
           (seq?  form)   (seq-mm form state)
           (vector? form) (vec (seq-f form state))
           (set? form)    (set (seq-f form state))
-          (map? form)    (apply hash-map (seq-f (into [] cat form) state))
+          (map? form)    (into (empty form) (apply hash-map (seq-f (into [] cat form) state)))
           (symbol? form) (sym-f form state)
           :else          form))))))
 
@@ -158,7 +158,7 @@
          (seq?  form)   (seq-mm form)
          (vector? form) (vec (seq-f form))
          (set? form)    (set (seq-f form))
-         (map? form)    (apply hash-map (seq-f (into [] cat form)))
+         (map? form)    (into (empty form) (apply hash-map (seq-f (into [] cat form))))
          (symbol? form) (sym-f form)
          :else          form)))))
 
@@ -171,5 +171,5 @@
       (seq? form)    (seq-mm form)
       (vector? form) (seq-f form vec)
       (set? form)    (seq-f form set)
-      (map? form)    (seq-f (into [] cat form) (partial apply hash-map))
+      (map? form)    (seq-f (into [] cat form) #(into (empty form) (apply hash-map %)))
       :else          form)))
