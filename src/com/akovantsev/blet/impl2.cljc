@@ -18,7 +18,7 @@
         pr (sym-root-name ko)
         kn (gensym (str pr "__"))] ;; __ so that gensym-reset in tests would work on these too.
     [kn (-> state
-          (update ::bound conj k)
+          (update ::bound u/sconj k)
           (update ::rename assoc k kn)
           (update ::orig assoc kn ko))]))
 
@@ -105,7 +105,7 @@
 
 (defn rename-seq-fn-anon [[fn*_ x :as form] state]
   (let [fname  (gensym "fn__")
-        state+ (update state ::bound conj fname)]
+        state+ (update state ::bound u/sconj fname)]
     (apply list fn*_ fname
       (map #(rename-arity % state+)
         (if (vector? x)
@@ -545,9 +545,12 @@
   (loop [form norm-form
          defs {}]
     (case (first form)
-      ::BODY  [defs (u/bodies->body (rest form))]
-      let*    (let [[let_ [sym expr] body] form]
-                (recur body (assoc defs sym expr))))))
+      :com.akovantsev.blet/BODY
+      [defs (u/bodies->body (rest form))]
+
+      let*
+      (let [[let_ [sym expr] body] form]
+        (recur body (assoc defs sym expr))))))
 
 
 

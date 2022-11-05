@@ -16,6 +16,8 @@
       "\nnot=\n\n"
       (with-out-str (pprint y)))))
 
+(def sconj (fnil conj #{}))
+
 (defn loop*?   [form] (and (seq? form) (= (first form) 'loop*)))
 (defn let*?    [form] (and (seq? form) (= (first form) 'let*)))
 (defn case*?   [form] (and (seq? form) (= (first form) 'case*)))

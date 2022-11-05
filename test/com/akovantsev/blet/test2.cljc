@@ -3,7 +3,7 @@
    [com.akovantsev.blet.print :as p]
    [com.akovantsev.blet.utils :as u :refer [assert= reset-gensym]]
    [com.akovantsev.blet.impl2 :as impl]
-   [com.akovantsev.blet.core :refer [blet blet!]]))
+   [com.akovantsev.blet.core :refer [blet blet! macroexpand-all]]))
 
 ;;fixme handle rename in quote
 
@@ -29,36 +29,40 @@
        (let* [c 2] a b))))
 
 
+(def lift-ifs #(u/until-fixed-point % impl/lift-ifs))
 
-(assert= "lift-if 1" (impl/lift-if '(a b (if test then else) c)) '(if test (a b then c) (a b else c)))
-(assert= "lift-if 2" (impl/lift-if '#{a b (if test then else) c}) '(if test #{a c then b} #{a else c b}))
-(assert= "lift-if 3" (impl/lift-if '{a b (if test then else) c}) '(if test {a b, then c} {a b, else c}))
-(assert= "lift-if 4" (impl/lift-if '{a b c (if test then else)}) '(if test {a b, c then} {a b, c else}))
+(assert= "lift-if 1" (lift-ifs '(a b (if test then else) c)) '(if test (a b then c) (a b else c)))
+(assert= "lift-if 2" (lift-ifs '#{a b (if test then else) c}) '(if test #{a c then b} #{a else c b}))
+(assert= "lift-if 3" (lift-ifs '{a b (if test then else) c}) '(if test {a b, then c} {a b, else c}))
+(assert= "lift-if 4" (lift-ifs '{a b c (if test then else)}) '(if test {a b, c then} {a b, c else}))
 
-(assert= "lift-if 5" (impl/lift-ifs '(let* [d 3] (let* [a (+ 1 (if b b 2))] a)))
-                    '(let* [d 3] (if b
-                                   (let* [a (+ 1 b)] a)
-                                   (let* [a (+ 1 2)] a))))
+(assert= "lift-if 5"
+  (lift-ifs '(let* [d 3] (let* [a (+ 1 (if b b 2))] a)))
+  '(let* [d 3] (if b
+                 (let* [a (+ 1 b)] a)
+                 (let* [a (+ 1 2)] a))))
 
-(assert= "lift-if 6" (impl/lift-ifs '(let* [b 3] (let* [a (+ 1 (if b b 2))] a)))
-                   '(let* [b 3]
-                      (if b
-                        (let* [a (+ 1 b)] a)
-                        (let* [a (+ 1 2)] a))))
+(assert= "lift-if 6"
+  (lift-ifs '(let* [b 3] (let* [a (+ 1 (if b b 2))] a)))
+  '(let* [b 3]
+     (if b
+       (let* [a (+ 1 b)] a)
+       (let* [a (+ 1 2)] a))))
 
 
-(assert (= (impl/lift-let-seq-default '(+ 1 (let* [b 1] b c) 2) seq)  '(let* [b 1] (+ 1 (do b c) 2))))
-(assert (= (impl/lift-let '(if (let* [a 1] (+ a 2)) b c)) '(let* [a 1] (if (+ a 2) b c))))
-(assert (= (impl/lift-let '(let* [a (let* [x 1] x y)] a b)) '(let* [x 1] (let* [a (do x y)] (do a b)))))
+(assert (= (impl/lift-lets '(+ 1 (let* [b 1] b c) 2)))  '(let* [b 1] (+ 1 (do b c) 2)))
+(assert (= (impl/lift-lets '(if (let* [a 1] (+ a 2)) b c)) '(let* [a 1] (if (+ a 2) b c))))
+(assert (= (impl/lift-lets '(let* [a (let* [x 1] x y)] a b)) '(let* [x 1] (let* [a (do x y)] (do a b)))))
 (assert= "lift let"
   '(let* [a 1] (let* [x 2] (do a x)))
-  (impl/lift-let '(let* [a 1] (let* [x 2] a x))))
+  (impl/lift-lets '(let* [a 1] (let* [x 2] a x))))
 
 (impl/dedupe-lets '(let* [x 1] [(let* [x 1] 2 [3 (let* [y 2] (let* [x 1] y))])]))
 
+(def dedupe-ifs #(u/until-fixed-point % impl/dedupe-ifs))
 
 (assert= "dedupe-ifs 1"
-  (impl/dedupe-ifs
+  (dedupe-ifs
     '(let* [or__0 1]
        (if or__0
          (let* [q or__0 w q x w] (if or__0 [x w] [x w]))
@@ -69,7 +73,7 @@
        (let* [q 2     w q x w] [x w]))))
 
 (assert= "dedupe-ifs quoted"
-  (impl/dedupe-ifs
+  (dedupe-ifs
     '(let* [or__0 1]
        '(if or__0
           (let* [q or__0 w q x w] (if or__0 [x w] [x w]))
@@ -79,39 +83,40 @@
         (let* [q or__0 w q x w] (if or__0 [x w] [x w]))
         (let* [q 2     w q x w] (if or__0 [x w] [x w])))))
 
-(impl/merge-lets '(let* [a 1] (let* [b 2] [(let* [c 3] x)])))
+(-> '(let* [a 1] (let* [b 2] (let* [c 3] [(let* [d 4] x)])))
+  (u/until-fixed-point impl/merge-lets))
 
 
 
 (assert= "lift-ifs"
-  (impl/lift-ifs '(let* [x (if p t e)] x))
+  (lift-ifs '(let* [x (if p t e)] x))
   '(if p (let* [x t] x)
          (let* [x e] x)))
 
 (assert= "lift-ifs"
-  (impl/lift-ifs '(let* [e2 (if p1 t1 e1)] (if p2 t2 e2)))
+  (lift-ifs '(let* [e2 (if p1 t1 e1)] (if p2 t2 e2)))
   '(if p1 (if p2 t2 (let* [e2 t1] e2))
           (if p2 t2 (let* [e2 e1] e2))))
 
 (assert= "lift-ifs"
-  (impl/lift-ifs '(let* [t2 (if p1 t1 e1)] (if p2 t2 e2)))
+  (lift-ifs '(let* [t2 (if p1 t1 e1)] (if p2 t2 e2)))
   '(if p1 (if p2 (let* [t2 t1] t2) e2)
           (if p2 (let* [t2 e1] t2) e2)))
 
 (assert= "lift-ifs"
-  (impl/lift-ifs '(let* [x (if p t e)] y))
+  (lift-ifs '(let* [x (if p t e)] y))
   '(if p (let* [x t] y) (let* [x e] y)))
 
 (assert= "lift-ifs"
-  (impl/lift-ifs '(let* [p 1] (let* [x (if p t e)] y)))
+  (lift-ifs '(let* [p 1] (let* [x (if p t e)] y)))
   '(let* [p 1] (if p (let* [x t] y) (let* [x e] y))))
 
 (assert= "lift-ifs"
-  (impl/lift-ifs '(let* [y 1] (let* [x (if p t e)] y)))
+  (lift-ifs '(let* [y 1] (let* [x (if p t e)] y)))
   '(let* [y 1] (if p (let* [x t] y) (let* [x e] y))))
 
 (assert= "lift-ifs"
-  (impl/lift-ifs '(let* [z 1] (let* [x (if p t e)] y)))
+  (lift-ifs '(let* [z 1] (let* [x (if p t e)] y)))
   '(let* [z 1] (if p (let* [x t] y) (let* [x e] y))))
 
 
@@ -489,6 +494,11 @@
            (blet [d (or a b)]
              (if (even? d) d (recur (foo d)))))))))
 
+(println "Testing nested blet! does not blow up:")
+(blet! [a 1]
+  [(blet! [b 2]
+     [b])])
+
 
 (reset-gensym
   (macroexpand
@@ -502,4 +512,4 @@
 
 
 
-(println "Tests are done with asserts, so if this is printed out – all is good.")
+(println "\n\nTests are done with asserts, so if this is printed out – all is good.")

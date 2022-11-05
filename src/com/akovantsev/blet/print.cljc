@@ -69,11 +69,18 @@
       (u/update-case form identity wrap-then wrap-else))))
 
 
+(defn insert-prints-seq-do [form cfg]
+  (if (-> form meta ::printed?)
+    form
+    (insert-prints-seq-default form cfg)))
+
+
 (defmulti  insert-prints-seq      (fn [form cfg] (first form)))
 (defmethod insert-prints-seq :default [form cfg] (insert-prints-seq-default form cfg))
 (defmethod insert-prints-seq   'case* [form cfg] (insert-prints-seq-case form cfg))
 (defmethod insert-prints-seq    'let* [form cfg] (insert-prints-seq-let form cfg))
 (defmethod insert-prints-seq      'if [form cfg] (insert-prints-seq-if form cfg))
+(defmethod insert-prints-seq      'do [form cfg] (insert-prints-seq-do form cfg))
 
 
 (def insert-prints (u/make-stateful-walker nil insert-prints-seq))
@@ -88,8 +95,10 @@
                   (map #(-> % first str count))
                   (reduce max 0))
         cfg     {::blet-id blet-id ::maxlen maxlen}]
-    (list 'do
+    (list (vary-meta 'do assoc ::printed? true)
       (print-start file-line)
       (printfn (symbol "src ") cfg nil (list 'quote orig))
-      (printfn (symbol "form") cfg nil (list 'quote form))
+      (printfn (symbol "    ") cfg nil (list 'quote form))
+      ;; cant print blet output ~ (let [bletsym expr] (print bletsym) bletsym)
+      ;; due to "Can only recur from tail position" when blet! is inside loop:
       (insert-prints form cfg))))
