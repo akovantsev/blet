@@ -36,10 +36,11 @@
     (binding [*print-length* (or *print-length* *default-print-len*)]
       (prn (symbol blet-name) (symbol label+) value))))
 
+(defn print-labeled-form [tag blet-id maxlen sym]
+  (print-value tag blet-id maxlen sym (get-in @!forms [blet-id sym])))
+
 (defn print-form [tag blet-id maxlen sym]
-  (let [label (if (symbol? sym) sym nil)
-        form  (get-in @!forms [blet-id sym])]
-    (print-value tag blet-id maxlen label form)))
+  (print-value tag blet-id maxlen nil (get-in @!forms [blet-id sym])))
 
 
 (declare insert-prints)
@@ -52,7 +53,7 @@
         wrap      (fn [[sym expr]]
                     (let [sym-name (name sym)]
                       (reg-form! blet-name sym-name expr)
-                      [__  (list `print-form "let " blet-name maxlen sym-name)
+                      [__  (list `print-labeled-form "let " blet-name maxlen sym-name)
                        sym (insert-prints expr cfg)
                        __  (list `print-value "=   " blet-name maxlen sym-name sym)]))
         pairs+    (->> pairs (partition 2) (mapcat wrap) (vec))]
