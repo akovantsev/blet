@@ -43,7 +43,7 @@
           ;; {1 [1 a], 2 [2 b]} -> {1 [1 (fv a)], 2 [2 (fv b)]}
           (let [f2 (fn [[x y]] [x (fv y)])
                 f+ (fn [pairs] (->> pairs (partition 2) (mapcat f2) (vec)))]
-            (reduce-kv (fn rf [m k v] (assoc m k (f+ v))) {} branches))))
+            (reduce-kv (fn rf [m k v] (assoc m k (f+ v))) (sorted-map) branches))))
 
 
 (defn update-case [case-form sym-fn branch-fn default-fn]
