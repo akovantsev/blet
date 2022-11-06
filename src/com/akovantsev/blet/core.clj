@@ -9,7 +9,7 @@
 (defn macroexpand-all
   "Like `cyrik.cljs-macroexpand.expand/macroexpand-all`, but does not expand quoted forms"
   ([form & [env]]
-   (binding [m/*environment* env]
+   (binding [m/*environment* (or env m/*environment*)]
      (let [md       (meta form)
            quoted?  (and (seq? form) (-> form first (= 'quote)))
            form*    (if-not (seq? form)
@@ -55,14 +55,14 @@
   "
   [bindings body & bodies]
   (let [form#  (list 'let bindings (cons :com.akovantsev.blet/BODY (cons body bodies)))
-        form2# (macroexpand-all form# &env)]
+        form2# (macroexpand-all form# (or &env {}))]
     (impl/blet &form form2# false nil)))
 
 
 (defmacro blet!
   [bindings body & bodies]
   (let [form#  (list 'let bindings (cons :com.akovantsev.blet/BODY (cons body bodies)))
-        form2# (macroexpand-all form# &env)
+        form2# (macroexpand-all form# (or &env {}))
         ;; https://stackoverflow.com/a/10958098
         line#  (format "%s %s"
                  (str/join "/" (take-last 3 (str/split *file* #"/")))
