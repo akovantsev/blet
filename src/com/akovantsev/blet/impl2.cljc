@@ -17,10 +17,11 @@
         ko (get orig k k)
         pr (sym-root-name ko)
         kn (gensym (str pr "__"))] ;; __ so that gensym-reset in tests would work on these too.
-    [kn (-> state
-          (update ::bound u/sconj k)
-          (update ::rename assoc k kn)
-          (update ::orig assoc kn ko))]))
+    [(-> kn (with-meta (meta ko)))
+     (-> state
+       (update ::bound u/sconj k)
+       (update ::rename assoc k kn)
+       (update ::orig assoc kn ko))]))
 
 
 (declare rename)
