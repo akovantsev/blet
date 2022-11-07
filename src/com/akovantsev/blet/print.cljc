@@ -33,26 +33,28 @@
 
 (declare insert-prints)
 
-(defn insert-prints-seq-default [form cfg]
-  (if (-> form meta ::printed?)
-    form
-    (map #(insert-prints % cfg) form)))
-
+(defn insert-prints-seq-default [form cfg] (map #(insert-prints % cfg) form))
 
 (defn insert-prints-seq-let     [form [mpf mpv :as cfg]]
   (let [[let_ pairs & bodies] form
-        body      (u/bodies->body bodies)
-        __        (gensym "__")
-        wrap      (fn [[sym expr]]
-                    (if (-> sym meta ::no-print)
-                      [sym expr]
-                      [__  (mpf "let " sym expr)
-                       sym (insert-prints expr cfg)
-                       __  (mpv "=   " sym sym)]))
-        pairs+    (->> pairs (partition 2) (mapcat wrap) (vec))]
-    (list let_ pairs+
-      (mpf "body" nil body)
-      (insert-prints body cfg))))
+        wrap (fn [body [sym expr]]
+               (if (-> sym meta ::no-print)
+                 (list (apply list let_ [sym expr] body))
+                 (list
+                   (mpf "let " sym expr)
+                   (apply list let_
+                     [sym (insert-prints expr cfg)]
+                     (mpv "=   " sym sym)
+                     body))))
+        res  (reduce wrap
+               (apply list
+                 (mpf "body" nil (u/bodies->body bodies))
+                 (insert-prints-seq-default bodies cfg))
+               (->> pairs (partition 2) (reverse)))]
+    (if (u/let*? res)
+      res
+      (cons 'do res))))
+
 
 
 (defn insert-prints-seq-if [form [mpf mpv :as cfg]]
@@ -92,21 +94,34 @@
 (def insert-prints (u/make-stateful-walker ["mpf" "mpv"] insert-prints-seq))
 
 
-(defn pv [blet-name maxlen tag label value]
-  (let [label+ (str "  " tag "  " (pad label maxlen) "  ")]
+(defn pv [blet-name maxlen value meta-holder]
+  (let [{::keys [tag label]} (meta meta-holder)
+        label+ (str "  " tag "  " (pad label maxlen) "  ")]
     ;; binding is here around every print statement, and not around entire blet!,
     ;; because binding inside e.g. loops causes "Cannot recur across try", see tests.
     (binding [*print-length* (or *print-length* *default-print-len*)]
       (prn (symbol blet-name) (symbol label+) value))))
 
-(defn pf [blet-id maxlen tag label meta-holder]
-  (pv blet-id maxlen tag label (-> meta-holder meta ::form)))
+(defn pf [blet-id maxlen meta-holder]
+  (pv blet-id maxlen (-> meta-holder meta ::form) meta-holder))
 
 (defn make-print-form [psym tag label form]
-   (list psym tag (some-> label name) (with-meta {} {::form (list 'quote form)})))
+  (list psym (with-meta {} {::tag tag ::label (some-> label name)  ::form (list 'quote form)})))
+
+;; cant store and retreive value from meta now,
+;; because if sym is not in source (but is in meta)
+;; in case of nested blet!s - outer blet does not rename sym inside meta,
+;; and you will get:
+;; > Unable to resolve symbol: b__28238 in this context
+;; fixme:
+;; proper way to fix it - preserve pre-prints form of inner blet!, and in outer blet! use that one
+;; instead of with-prints one.
+;; this way old and new print inserts will not conflict.
+
+(defn with-prints [form] form)
 
 (defn make-print-value [psym tag label value]
-  (list psym tag (some-> label name) value))
+  (list psym value (with-meta {} {::tag tag ::label (some-> label name)})))
 
 (defn insert-prints-init [form orig file-line]
   (let [blet-name (name (gensym "blet__"))
@@ -122,15 +137,14 @@
         mpf     (partial make-print-form pf-sym)
         mpv     (partial make-print-value pv-sym)]
 
-    (let [form+   (list 'let* [pf-sym (list `partial `pf blet-name maxlen)
-                               pv-sym (list `partial `pv blet-name maxlen)]
-                    (list `print-start file-line)
-                    (mpf "src " nil orig)
-                    (mpf "    " nil form)
-                    ;; cant print blet output ~ (let [bletsym expr] (print bletsym) bletsym)
-                    ;; due to "Can only recur from tail position" when blet! is inside loop:
-                    (insert-prints form [mpf mpv]))]
-      (vary-meta form+ assoc ::printed? true))))
-
-;;fixme: deep nested inline blet!s print stale forms
-;; (outer blet! changes inner form according to new (outer context))
+    ;; somehow using customidentity fn here instead of 'do
+    ;; fails blet! inside loop test about recur from tail position.
+    (list (vary-meta 'do assoc ::orig-form (list 'quote form))
+      (list 'let* [pf-sym (list `partial `pf blet-name maxlen)
+                   pv-sym (list `partial `pv blet-name maxlen)]
+        (list `print-start file-line)
+        (mpf "src " nil orig)
+        (mpf "    " nil form)
+        ;; cant print blet output ~ (let [bletsym expr] (print bletsym) bletsym)
+        ;; due to "Can only recur from tail position" when blet! is inside loop:
+        (insert-prints form [mpf mpv])))))

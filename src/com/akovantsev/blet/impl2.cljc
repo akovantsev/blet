@@ -539,7 +539,12 @@
 
 
 
-
+(defn pick-pre-print [form]
+  (u/prewalk form
+    (fn [x]
+      (if (and (seq? x) (-> x first (= 'do)))
+        (-> x first meta ::p/orig-form second (or x)) ;;unquote
+        x))))
 
 
 (defn parse [norm-form]
@@ -567,6 +572,7 @@
 
 (defn blet [&form_ let-binds-body print? file-line]
   (let [normal (-> let-binds-body
+                 pick-pre-print
                  (u/until-fixed-point optimize-ifs)
                  (u/until-fixed-point simplify-loops)
                  (u/until-fixed-point split-lets)
