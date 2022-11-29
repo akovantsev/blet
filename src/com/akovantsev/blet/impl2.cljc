@@ -187,7 +187,15 @@
 
 (defn lift-ifs-seq-if [form]
   (let [[if_ pred then else] form]
-    (list if_ (lift-ifs pred) (lift-ifs then) (lift-ifs else))))
+    (cond
+      (u/if? pred)
+      (let [[if_ pred2 then2 else2] pred]
+        (list if_ pred2
+          (list if_ then2 then else)
+          (list if_ else2 then else)))
+
+      :else
+      (list if_ (lift-ifs pred) (lift-ifs then) (lift-ifs else)))))
 
 ;; cant lift any ifs from loop, eg:
 ;(lift-if
@@ -573,17 +581,29 @@
 (defn blet [&form_ let-binds-body print? file-line]
   (let [normal (-> let-binds-body
                  pick-pre-print
+                 ;u/spy
                  (u/until-fixed-point optimize-ifs)
+                 ;u/spy
                  (u/until-fixed-point simplify-loops)
+                 ;u/spy
                  (u/until-fixed-point split-lets)
+                 ;u/spy
                  (rename))
+                 ;u/spy)
         [defs body] (parse normal)]
     (-> body
+      ;u/spy
       (wrap defs)
+      ;u/spy
       (u/until-fixed-point lift-branches)
+      ;u/spy
       (u/until-fixed-point dedupe-lets)
+      ;u/spy
       (u/until-fixed-point dedupe-ifs)
+      ;u/spy
       (u/until-fixed-point collapse-aliases)
+      ;u/spy
       (u/until-fixed-point merge-lets)
+      ;u/spy
       (cond->
         print? (p/insert-prints-init &form_ file-line)))))

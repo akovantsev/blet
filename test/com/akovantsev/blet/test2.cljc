@@ -49,6 +49,15 @@
        (let* [a (+ 1 b)] a)
        (let* [a (+ 1 2)] a))))
 
+(assert= "lift-if 7: if as predicate:"
+  (reset-gensym
+    (macroexpand
+      '(blet [a (if b 1 2)]
+         (cond a 3))))
+  '(if b
+     (let* [a__0 1] (if a__0 3 nil))
+     (let* [a__0 2] (if a__0 3 nil))))
+
 
 (assert (= (impl/lift-lets '(+ 1 (let* [b 1] b c) 2)))  '(let* [b 1] (+ 1 (do b c) 2)))
 (assert (= (impl/lift-lets '(if (let* [a 1] (+ a 2)) b c)) '(let* [a 1] (if (+ a 2) b c))))
