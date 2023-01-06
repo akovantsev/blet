@@ -38,8 +38,16 @@
 (defn insert-prints-seq-let     [form [mpf mpv :as cfg]]
   (let [[let_ pairs & bodies] form
         wrap (fn [body [sym expr]]
-               (if (-> sym meta ::no-print)
+               (cond
+                 (-> sym meta ::no-print)
                  (list (apply list let_ [sym expr] body))
+
+                 (and (seq? expr) (-> expr first (= 'NOPRINT)))
+                 (list
+                   (mpf "let " sym expr)
+                   (apply list let_ [sym expr] body))
+
+                 :else
                  (list
                    (mpf "let " sym expr)
                    (apply list let_
@@ -143,8 +151,8 @@
       (list 'let* [pf-sym (list `partial `pf blet-name maxlen)
                    pv-sym (list `partial `pv blet-name maxlen)]
         (list `print-start file-line)
-        (mpf "src " nil orig)
-        (mpf "    " nil form)
+        ;(mpf "src " nil orig)
+        ;(mpf "    " nil form)
         ;; cant print blet output ~ (let [bletsym expr] (print bletsym) bletsym)
         ;; due to "Can only recur from tail position" when blet! is inside loop:
         (insert-prints form [mpf mpv])))))

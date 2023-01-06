@@ -3,7 +3,7 @@
    [com.akovantsev.blet.print :as p]
    [com.akovantsev.blet.utils :as u :refer [assert= reset-gensym]]
    [com.akovantsev.blet.impl2 :as impl]
-   [com.akovantsev.blet.core :refer [blet blet! macroexpand-all]]))
+   [com.akovantsev.blet.core :refer [blet blet! macroexpand-all NOPRINT]]))
 
 ;;fixme handle rename in quote
 
@@ -363,8 +363,8 @@
 (assert= "fn is opaque 1: syms used inside fn, but declared outside fn - get declared outside fn"
   '(let* [b__0 (bbbb)]
      (if b__0
-       (let* [a__1 (aaaa) c__2 (fn* fn__3 ([] (if a__1 a__1 (if b__0 b__0 b__0))))] c__2)
-       (let* [a__4 (aaaa) c__5 (fn* fn__6 ([] (if a__4 a__4 (if b__0 b__0 a__4))))] c__5)))
+       (let* [a__1 (aaaa) c__2 (fn* fn__3 ([] (if a__1 a__1 b__0)))] c__2)
+       (let* [a__4 (aaaa) c__5 (fn* fn__6 ([] a__4))] c__5)))
   (reset-gensym
     (macroexpand
       '(blet [a (aaaa)
@@ -380,9 +380,7 @@
      (let* [b__3 (bbbb)]
       (if b__3
        (let* [c__4 (fn* fn__5 ([] b__3))] c__4)
-       (if b__3
-        (let* [c__6 (fn* fn__7 ([] b__3))] c__6)
-        (let* [c__8 (fn* fn__9 ([] a__0))] c__8))))))
+       (let* [c__6 (fn* fn__7 ([] a__0))] c__6)))))
   (reset-gensym
     (macroexpand
       '(blet [a (aaaa)
@@ -433,11 +431,10 @@
          (or b a)))))
 
 (assert= "opaque try"
-  '(let* [b__0 2]
+  '(let* [b__0 2 c__1  3]
      (if b__0
-       (let* [c__1  3] (f c__1 c__1))
-       (let* [c__1  3
-              a__2  1
+       (f c__1 c__1)
+       (let* [a__2  1
               d__3  (try a__2 (catch ex e__4 b__0) (finally c__1))] (f d__3 c__1))))
   (reset-gensym
     (macroexpand
@@ -503,7 +500,7 @@
            (blet [d (or a b)]
              (if (even? d) d (recur (foo d)))))))))
 
-(println "Testing nested blet! does not blow up:")
+(println "\nTesting nested blet! does not blow up:")
 (blet! [a 1]
   [(blet! [b 2]
      [b])])
@@ -520,6 +517,47 @@
          [2 a c]))))
 
 
+(println "\nTesting NOPRINT prints expr, but does not print value:")
+(blet! [a (NOPRINT (inc 2))
+        b (inc 3)]
+  [a b])
+
+
+(assert= "eliminate dead branches 1"
+  '(if a 1 3)
+  (reset-gensym
+    (macroexpand
+      '(blet [] (if a 1 (if a 2 3))))))
+
+
+(assert= "eliminate dead branches 2"
+  '(if a 1 (foo 3))
+  (reset-gensym
+    (macroexpand
+      '(blet [] (if a 1 (foo (if a 2 3)))))))
+
+;#_
+(assert= "eliminate dead branches 3"
+  '[a]
+  (reset-gensym
+    (macroexpand
+      '(blet [] [(if a a a)]))))
+
+(let [a (inc 1)] (blet [] (if a a a)))
+
+(assert= "eliminate dead branches 3"
+  '[a]
+  (reset-gensym
+    (macroexpand
+      '(blet [] [(if (or a a (and a a)) (or a a a) (and a))]))))
+
+
+(assert= "eliminate dead branches 4"
+  '(if b b c)
+  (reset-gensym
+    (macroexpand
+      '(blet [a (or b c (and b c))]
+         (if b a c)))))
 
 
 (println "\n\nTests are done with asserts, so if this is printed out – all is good.")

@@ -6,6 +6,9 @@
    [cyrik.cljs-macroexpand.expand :as m]))
 
 
+(def NOPRINT identity)
+
+
 (defn macroexpand-all
   "Like `cyrik.cljs-macroexpand.expand/macroexpand-all`, but does not expand quoted forms"
   ([form & [env]]

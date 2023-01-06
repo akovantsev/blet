@@ -328,12 +328,25 @@
 (defn lift-lets-seq-if [form]
   (let [[if_ pred then else] form]
     ;; pred is visible for both then&else, so lifting only from pred:
-    (if-not (u/let*? pred)
-      (list if_ (lift-lets pred) (lift-lets then) (lift-lets else))
+    (cond
+      (u/let*? pred)
       (let [[let_ pair & bodies] pred
             body (u/bodies->body bodies)]
         (list let_ pair
-          (list if_ body (lift-lets then) (lift-lets else)))))))
+          (lift-lets-seq-if
+            (list if_ body then else))))
+
+      (and (u/let*? then) (u/let*? else) (= (second then) (second else)))
+      (let [[let_ pair1 & bodies1] then
+            [let_ pair2 & bodies2] else]
+        (list let_ pair1
+          (lift-lets-seq-if
+            (list if_ pred
+              (u/bodies->body bodies1)
+              (u/bodies->body bodies2)))))
+
+      :else
+      (list if_ (lift-lets pred) (lift-lets then) (lift-lets else)))))
 
 
 (defn lift-lets-seq-let [form]
@@ -471,7 +484,32 @@
 (def wrap (u/make-stateful-walker nil wrap-seq wrap-sym))
 
 
+;; (if a 1 (foo (if a 2 3) -> (if a 1 (foo 3))
+(declare fewer-branches)
 
+(defn fewer-branches-seq-if            [form state]
+  (let [[if_ pred then else] form]
+    (cond
+      (= then else)
+      (fewer-branches then state)  ;; (if a x x) -> x
+
+      (-> state ::truthy (contains? pred)) (fewer-branches then state)
+      (-> state ::falsey (contains? pred)) (fewer-branches else state)
+      :else
+      ;; relies on fewer-branches being called after all ifs are lifted from preds/let exprs:
+      (list if_ pred
+        (fewer-branches then (update state ::truthy conj pred))
+        (fewer-branches else (update state ::falsey conj pred))))))
+
+
+(defn fewer-branches-seq-default       [form state] (map #(fewer-branches % state) form))
+
+(defmulti  fewer-branches-seq      (fn [form state] (first form)))
+(defmethod fewer-branches-seq :default [form state] (fewer-branches-seq-default form state))
+(defmethod fewer-branches-seq   'quote [form state] form)
+(defmethod fewer-branches-seq      'if [form state] (fewer-branches-seq-if form state))
+
+(def fewer-branches (u/make-stateful-walker {::truthy #{} ::falsey #{}} fewer-branches-seq))
 
 
 (declare   optimize-ifs)
@@ -571,9 +609,9 @@
 
 (defn lift-branches [form]
   (-> form
+    (u/until-fixed-point lift-lets)
     (u/until-fixed-point lift-ifs)
-    (u/until-fixed-point lift-cases)
-    (u/until-fixed-point lift-lets)))
+    (u/until-fixed-point lift-cases)))
 
 
 
@@ -602,6 +640,8 @@
       (u/until-fixed-point dedupe-ifs)
       ;u/spy
       (u/until-fixed-point collapse-aliases)
+      ;u/spy
+      (u/until-fixed-point fewer-branches)
       ;u/spy
       (u/until-fixed-point merge-lets)
       ;u/spy
