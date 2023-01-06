@@ -91,6 +91,9 @@
 (defn get-syms [form]
   (->> form (tree-seq coll? seq) (filter symbol?) set))
 
+(defn get-sym-freqs [form]
+  (->> form (tree-seq coll? seq) (filter symbol?) frequencies))
+
 (defn any-pred? [x & preds]
   (reduce #(if (%2 x) (reduced true) false) false preds))
 

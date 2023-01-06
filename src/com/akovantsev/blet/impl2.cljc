@@ -490,9 +490,6 @@
 (defn fewer-branches-seq-if            [form state]
   (let [[if_ pred then else] form]
     (cond
-      (= then else)
-      (fewer-branches then state)  ;; (if a x x) -> x
-
       (-> state ::truthy (contains? pred)) (fewer-branches then state)
       (-> state ::falsey (contains? pred)) (fewer-branches else state)
       :else
@@ -571,8 +568,14 @@
         body (u/bodies->body bodies)]
     (if (symbol? expr)
       (collapse-aliases (rename body {::rename {sym expr}}))
-      (list let_ [sym (collapse-aliases expr)]
-        (collapse-aliases body)))))
+      (let [freqs (u/get-sym-freqs body)]
+        (if (and (u/if? body) (-> sym freqs (= 1)) (-> body second (= sym)))
+          (let [[if_ pred then else] body]
+            (list if_ (collapse-aliases expr)
+                      (collapse-aliases then)
+                      (collapse-aliases else)))
+          (list let_ [sym (collapse-aliases expr)]
+            (collapse-aliases body)))))))
 
 (defn      collapse-aliases-seq-default  [form] (map collapse-aliases form))
 (defmulti  collapse-aliases-seq      (fn [form] (first form)))
@@ -635,13 +638,18 @@
       ;u/spy
       (u/until-fixed-point lift-branches)
       ;u/spy
-      (u/until-fixed-point dedupe-lets)
-      ;u/spy
-      (u/until-fixed-point dedupe-ifs)
-      ;u/spy
-      (u/until-fixed-point collapse-aliases)
-      ;u/spy
-      (u/until-fixed-point fewer-branches)
+      (u/until-fixed-point
+        #(-> %
+           (u/until-fixed-point dedupe-lets)
+           ;u/spy
+           (u/until-fixed-point dedupe-ifs)
+           ;u/spy
+           (u/until-fixed-point collapse-aliases)
+           ;u/spy
+           (u/until-fixed-point optimize-ifs)
+           ;u/spy
+           (u/until-fixed-point fewer-branches)))
+           ;u/spy))
       ;u/spy
       (u/until-fixed-point merge-lets)
       ;u/spy
