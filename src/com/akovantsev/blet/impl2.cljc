@@ -662,6 +662,8 @@
         destructuring? #{#?(:clj  (clj-09-map-str sym))
                          #?(:clj  (clj-11-map-str sym))
                          #?(:cljs (cljs-10-map-str sym))}]
+    #?(:cljs (prn (-> expr pr-str)))
+    #?(:cljs (prn destructuring?))
     (if (and (= sym-name "map") (-> expr pr-str destructuring?))
       (apply list let_ [sym (list ::GUARD expr)] (guard-bindings bodies))
       (apply list let_ [sym (guard-bindings expr)] (guard-bindings bodies)))))
