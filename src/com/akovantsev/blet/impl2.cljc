@@ -1,7 +1,5 @@
 (ns com.akovantsev.blet.impl2
   (:require
-    #?(:cljs [goog.string :as gstring])
-    #?(:cljs goog.string.format)
    [clojure.string :as str]
    [com.akovantsev.blet.utils :as u]
    [com.akovantsev.blet.print :as p]))
@@ -650,7 +648,7 @@
             sym sym sym sym sym sym)))
 
 (defn cljs-10-map-str [sym]
-  #?(:clj (format "(if (if (clojure.core/not (js* \"(~{} == ~{})\" %s nil)) (if (js* \"((~{}) || (~{}))\"  (js* \"(~{} & ~{})\" (. %s -cljs$lang$protocol_mask$partition0$) 64) (js* \"(~{} === ~{})\" cljs.core/PROTOCOL_SENTINEL (. %s -cljs$core$ISeq$))) true false) false) (clojure.core/apply cljs.core/hash-map %s) %s)"
+  #?(:clj (format "(if (if (clojure.core/not (js* \"(~{} == ~{})\" %s nil)) (if (js* \"((~{}) || (~{}))\" (js* \"(~{} & ~{})\" (. %s -cljs$lang$protocol_mask$partition0$) 64) (js* \"(~{} === ~{})\" cljs.core/PROTOCOL_SENTINEL (. %s -cljs$core$ISeq$))) true false) false) (clojure.core/apply cljs.core/hash-map %s) %s)"
             sym sym sym sym sym)))
 
 
@@ -662,8 +660,6 @@
         destructuring? #{(clj-09-map-str sym)
                          (clj-11-map-str sym)
                          (cljs-10-map-str sym)}]
-    (prn (-> expr pr-str))
-    (prn destructuring?)
     (if (and (= sym-name "map") (-> expr pr-str destructuring?))
       (apply list let_ [sym (list ::GUARD expr)] (guard-bindings bodies))
       (apply list let_ [sym (guard-bindings expr)] (guard-bindings bodies)))))
