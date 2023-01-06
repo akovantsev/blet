@@ -3,7 +3,8 @@
    [com.akovantsev.blet.print :as p]
    [com.akovantsev.blet.utils :as u :refer [assert= reset-gensym]]
    [com.akovantsev.blet.impl2 :as impl]
-   [com.akovantsev.blet.core :refer [blet blet! macroexpand-all NOPRINT]]))
+   [clojure.string :as str]
+   [com.akovantsev.blet.core :refer [blet blet! blet? macroexpand-all NOPRINT]]))
 
 ;;fixme handle rename in quote
 
@@ -537,7 +538,6 @@
     (macroexpand
       '(blet [] (if a 1 (foo (if a 2 3)))))))
 
-;#_
 (assert= "eliminate dead branches 3"
   '[a]
   (reset-gensym
@@ -546,7 +546,7 @@
 
 (let [a (inc 1)] (blet [] (if a a a)))
 
-(assert= "eliminate dead branches 3"
+(assert= "eliminate dead branches 5"
   '[a]
   (reset-gensym
     (macroexpand
@@ -560,5 +560,64 @@
       '(blet [a (or b c (and b c))]
          (if b a c)))))
 
+
+(assert= "guard map destructuring defensive ifs from blet modification:"
+  ;; this if gonna be different if tests are run with clj 1.11:
+  '(let* [map__0 {}
+          map__1 #?(:cljs (cljs.core/--destructure-map map__0)
+                    :clj (if (clojure.core/seq? map__0)
+                           (. clojure.lang.PersistentHashMap create (clojure.core/seq map__0))
+                           map__0))
+          a__2 #?(:cljs (cljs.core/get map__1 :a)
+                  :clj (clojure.core/get map__1 :a))]
+     a__2)
+  (reset-gensym
+    (macroexpand
+      '(blet [{:keys [:a :b]} {}]
+         a))))
+
+
+(time
+  (defn add-line-keyword [node kw-id kw]
+    (blet [{:keys [:text :spans]} node
+           lower   (str/lower-case text)
+           idxs+   (loop [idx 0 done #{}]
+                     (if-let [idx (str/index-of lower kw idx)]
+                       (let [end (+ idx (count kw))]
+                         (recur end (into done (range idx end))))
+                       done))
+           blanks  (zipmap (range (count lower)) (repeat #{}))
+           by-idx  (->> spans
+                     (map (fn [[[a b] v]] (zipmap (range a (inc b)) (repeat v))))
+                     (reduce merge blanks))
+           by-idx2 (reduce
+                     (fn [m idx] (update m idx u/sconj kw-id))
+                     by-idx
+                     idxs+)
+           spans2  (->> by-idx2
+                     (sort-by first)
+                     (partition-by val)
+                     (reduce
+                       (fn [!m idxed]
+                         (assoc! !m [(-> idxed first key) (-> idxed last key)] (-> idxed first val)))
+                       (transient {}))
+                     (persistent!))
+           line+   (-> node
+                     (assoc :spans spans2)
+                     (update :kw-ids u/sconj kw-id))]
+      (cond
+        (empty? text)  node
+        (empty? idxs+) node
+        :else          line+))))
+
+
+(time
+  (reset-gensym
+    (macroexpand
+      '(blet [{:keys [::a ::b ::c ::d ::e]} {}]
+         (cond
+           a        (or a b)
+           (or b d) (or b a c)
+           e        (or b a (and d a)))))))
 
 (println "\n\nTests are done with asserts, so if this is printed out – all is good.")

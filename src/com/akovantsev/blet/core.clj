@@ -62,6 +62,14 @@
     (impl/blet &form form2# false nil)))
 
 
+(defmacro blet?
+  [bindings body & bodies]
+  (let [form#  (list 'let bindings (cons :com.akovantsev.blet/BODY (cons body bodies)))
+        form2# (macroexpand-all form# (or &env {}))]
+    (impl/blet &form form2# false nil true)))
+
+
+
 (defmacro blet!
   [bindings body & bodies]
   (let [form#  (list 'let bindings (cons :com.akovantsev.blet/BODY (cons body bodies)))

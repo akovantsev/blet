@@ -1,5 +1,6 @@
 (ns com.akovantsev.blet.impl2
   (:require
+   [clojure.string :as str]
    [com.akovantsev.blet.utils :as u]
    [com.akovantsev.blet.print :as p]))
 
@@ -248,6 +249,7 @@
 (defmulti  lift-ifs-seq      (fn [form] (first form)))
 (defmethod lift-ifs-seq :default [form] (lift-ifs-seq-default form seq))
 (defmethod lift-ifs-seq   'quote [form] form)
+(defmethod lift-ifs-seq  ::GUARD [form] form)
 (defmethod lift-ifs-seq     'fn* [form] form)
 (defmethod lift-ifs-seq   'loop* [form] form)
 (defmethod lift-ifs-seq      'if [form] (lift-ifs-seq-if form))
@@ -297,6 +299,7 @@
 (defmulti  lift-cases-seq      (fn [form] (first form)))
 (defmethod lift-cases-seq :default [form] (lift-case-seq-default form seq))
 (defmethod lift-cases-seq   'quote [form] form)
+(defmethod lift-cases-seq  ::GUARD [form] form)
 (defmethod lift-cases-seq     'fn* [form] form)
 (defmethod lift-cases-seq   'loop* [form] form)
 (defmethod lift-cases-seq      'if [form] (lift-case-seq-if form))
@@ -375,6 +378,7 @@
 (defmulti  lift-lets-seq      (fn [form] (first form)))
 (defmethod lift-lets-seq :default [form] (lift-lets-seq-default form seq))
 (defmethod lift-lets-seq   'quote [form] form)
+(defmethod lift-lets-seq  ::GUARD [form] form)
 (defmethod lift-lets-seq     'fn* [form] form)
 (defmethod lift-lets-seq   'loop* [form] form)
 (defmethod lift-lets-seq      'if [form] (lift-lets-seq-if form))
@@ -405,6 +409,7 @@
 
 (defmulti  dedupe-lets-seq      (fn [form bound] (first form)))
 (defmethod dedupe-lets-seq   'quote [form bound] form)
+(defmethod dedupe-lets-seq  ::GUARD [form bound] form)
 (defmethod dedupe-lets-seq :default [form bound] (dedupe-lets-seq-default form bound))
 (defmethod dedupe-lets-seq    'let* [form bound] (dedupe-lets-seq-let form bound))
 
@@ -425,6 +430,7 @@
 
 (defmulti  dedupe-if-seq      (fn [form] (first form)))
 (defmethod dedupe-if-seq   'quote [form] form)
+(defmethod dedupe-if-seq  ::GUARD [form] form)
 (defmethod dedupe-if-seq :default [form] (dedupe-ifs-default form))
 (defmethod dedupe-if-seq      'if [form] (dedupe-ifs-seq-if form))
 
@@ -450,6 +456,7 @@
 (defn      merge-lets-seq-default  [form] (map merge-lets form))
 (defmulti  merge-lets-seq      (fn [form] (first form)))
 (defmethod merge-lets-seq   'quote [form] form)
+(defmethod merge-lets-seq  ::GUARD [form] form)
 (defmethod merge-lets-seq :default [form] (merge-lets-seq-default form))
 (defmethod merge-lets-seq    'let* [form] (merge-lets-seq-let form))
 
@@ -477,6 +484,7 @@
 (defmulti  wrap-seq      (fn [form defs] (first form)))
 (defmethod wrap-seq :default [form defs] (wrap-seq-default form defs))
 (defmethod wrap-seq   'quote [form defs] form)
+(defmethod wrap-seq  ::GUARD [form defs] (wrap-opaque form defs))
 (defmethod wrap-seq     'fn* [form defs] (wrap-opaque form defs))
 (defmethod wrap-seq   'loop* [form defs] (wrap-opaque form defs))
 (defmethod wrap-seq     'try [form defs] (wrap-opaque form defs)) ;;review: mb wrap-opaq for body and finally, but recur for catch inside?
@@ -504,6 +512,7 @@
 (defmulti  fewer-branches-seq      (fn [form state] (first form)))
 (defmethod fewer-branches-seq :default [form state] (fewer-branches-seq-default form state))
 (defmethod fewer-branches-seq   'quote [form state] form)
+(defmethod fewer-branches-seq  ::GUARD [form state] form)
 (defmethod fewer-branches-seq      'if [form state] (fewer-branches-seq-if form state))
 
 (def fewer-branches (u/make-stateful-walker {::truthy #{} ::falsey #{}} fewer-branches-seq))
@@ -524,6 +533,7 @@
 (defmulti  optimize-ifs-seq      (fn [form] (first form)))
 (defmethod optimize-ifs-seq :default [form] (optimize-ifs-seq-default form))
 (defmethod optimize-ifs-seq   'quote [form] form)
+(defmethod optimize-ifs-seq  ::GUARD [form] form)
 (defmethod optimize-ifs-seq      'if [form] (optimize-ifs-seq-if form))
 
 (def optimize-ifs (u/make-stateless-walker optimize-ifs-seq))
@@ -617,41 +627,103 @@
     (u/until-fixed-point lift-cases)))
 
 
+;; main bane of blet macroexpansion is map destructuring:
+;; 1) usually it is one of the first binding pairs
+;; 2) it has several ifs just to be sure destructuring does not blow up
+;; ifs at the beginnig of the blet = lots of almost the same branches of code.
+;; lately it got even more ifs:
+;; https://clojure.atlassian.net/browse/CLJ-2603
+;; https://github.com/clojure/clojure/commit/3c9307e27479d450e3f1cdf7903458b83ebf52d7#diff-313df99869bda118262a387b322021d2cd9bea959fad3890cb78c6c37b448299L4419-R4438
+;; so trivial (blet[{:keys [:a]} {}] a) generates lots of code,
+;; and nontrivial - might take minutes to macroexpand :'(
+;; so this is a hack to detect map-guards and mark them with GUARD, to keep untouched,
+;; and avoid branches explosion:
+
+(defn clj-09-map-str [sym]
+  #?(:cljs nil
+     :clj (format "(if (clojure.core/seq? %s) (. clojure.lang.PersistentHashMap create (clojure.core/seq %s)) %s)"
+            sym sym sym)))
+
+(defn clj-11-map-str [sym]
+  #?(:cljs nil
+     :clj (format "(if (clojure.core/seq? %s) (if (clojure.core/next %s) (. clojure.lang.PersistentArrayMap createAsIfByAssoc (clojure.core/to-array %s)) (if (clojure.core/seq %s) (clojure.core/first %s) clojure.lang.PersistentArrayMap/EMPTY)) %s)"
+            sym sym sym sym sym sym)))
 
 
-(defn blet [&form_ let-binds-body print? file-line]
-  (let [normal (-> let-binds-body
-                 pick-pre-print
-                 ;u/spy
+(declare guard-bindings)
+(defn guard-bindings-seq-let [form]
+  (let [[let_ [sym expr] & bodies] form
+        [sym-name sym-id] (-> sym name (str/split #"__"))
+        destructuring? #{(clj-11-map-str sym)
+                         (clj-09-map-str sym)}]
+    (if (and (= sym-name "map") (-> expr pr-str destructuring?))
+      (apply list let_ [sym (list ::GUARD expr)] (guard-bindings bodies))
+      (apply list let_ [sym (guard-bindings expr)] (guard-bindings bodies)))))
+
+
+(defn guard-bindings-seq-default [form] (map guard-bindings form))
+(defmulti  guard-bindings-seq (fn [form] (first form)))
+(defmethod guard-bindings-seq :default [form] (guard-bindings-seq-default form))
+(defmethod guard-bindings-seq   'quote [form] form)
+(defmethod guard-bindings-seq    'let* [form] (guard-bindings-seq-let form))
+
+
+(def guard-bindings (u/make-stateless-walker guard-bindings-seq))
+
+
+(declare unguard-bindings)
+(defn  unguard-bindings-seq-default [form] (map unguard-bindings form))
+(defmulti  unguard-bindings-seq (fn [form] (first form)))
+(defmethod unguard-bindings-seq :default [form] (unguard-bindings-seq-default form))
+(defmethod unguard-bindings-seq   'quote [form] form)
+(defmethod unguard-bindings-seq  ::GUARD [form] (second form))
+
+(def unguard-bindings (u/make-stateless-walker unguard-bindings-seq))
+
+
+
+(defn blet [&form_ let-binds-body print? file-line & [debug?]]
+  (let [spy    (fn [x & [label]]
+                 (when debug?
+                   (println)
+                   (println label))
+                 (if debug? (u/spy x) x))
+        normal (-> let-binds-body
+                 (pick-pre-print)
+                 (spy "pick-pre-print")
                  (u/until-fixed-point optimize-ifs)
-                 ;u/spy
+                 (spy "optimize-ifs")
                  (u/until-fixed-point simplify-loops)
-                 ;u/spy
+                 (spy "simplify-loops")
                  (u/until-fixed-point split-lets)
-                 ;u/spy
-                 (rename))
-                 ;u/spy)
+                 (spy "split-lets")
+                 (guard-bindings)
+                 (spy "guard-bindings")
+                 (rename)
+                 (spy "rename"))
         [defs body] (parse normal)]
+    ()
     (-> body
-      ;u/spy
+      (spy "parse")
       (wrap defs)
-      ;u/spy
+      (spy "wrap")
       (u/until-fixed-point lift-branches)
-      ;u/spy
+      (spy "lift-branches")
       (u/until-fixed-point
         #(-> %
            (u/until-fixed-point dedupe-lets)
-           ;u/spy
+           (spy "dedupe-lets")
            (u/until-fixed-point dedupe-ifs)
-           ;u/spy
+           (spy "dedupe-ifs")
            (u/until-fixed-point collapse-aliases)
-           ;u/spy
+           (spy "collapse-aliases")
            (u/until-fixed-point optimize-ifs)
-           ;u/spy
-           (u/until-fixed-point fewer-branches)))
-           ;u/spy))
-      ;u/spy
+           (spy "lift-branches")
+           (u/until-fixed-point fewer-branches)
+           (spy "fewer-branches")))
       (u/until-fixed-point merge-lets)
-      ;u/spy
+      (spy "merge-lets")
+      (unguard-bindings)
+      (spy "unguard-bindings")
       (cond->
         print? (p/insert-prints-init &form_ file-line)))))
