@@ -1,5 +1,7 @@
 (ns com.akovantsev.blet.impl2
   (:require
+    #?(:cljs [goog.string :as gstring])
+    #?(:cljs goog.string.format)
    [clojure.string :as str]
    [com.akovantsev.blet.utils :as u]
    [com.akovantsev.blet.print :as p]))
@@ -639,23 +641,27 @@
 ;; so this is a hack to detect map-guards and mark them with GUARD, to keep untouched,
 ;; and avoid branches explosion:
 
-(defn clj-09-map-str [sym]
-  #?(:cljs nil
-     :clj (format "(if (clojure.core/seq? %s) (. clojure.lang.PersistentHashMap create (clojure.core/seq %s)) %s)"
+#?(:clj (defn clj-09-map-str [sym]
+          (format "(if (clojure.core/seq? %s) (. clojure.lang.PersistentHashMap create (clojure.core/seq %s)) %s)"
             sym sym sym)))
 
-(defn clj-11-map-str [sym]
-  #?(:cljs nil
-     :clj (format "(if (clojure.core/seq? %s) (if (clojure.core/next %s) (. clojure.lang.PersistentArrayMap createAsIfByAssoc (clojure.core/to-array %s)) (if (clojure.core/seq %s) (clojure.core/first %s) clojure.lang.PersistentArrayMap/EMPTY)) %s)"
+#?(:clj (defn clj-11-map-str [sym]
+          (format "(if (clojure.core/seq? %s) (if (clojure.core/next %s) (. clojure.lang.PersistentArrayMap createAsIfByAssoc (clojure.core/to-array %s)) (if (clojure.core/seq %s) (clojure.core/first %s) clojure.lang.PersistentArrayMap/EMPTY)) %s)"
             sym sym sym sym sym sym)))
+
+#?(:cljs (defn cljs-10-map-str [sym]
+           (goog.string.format "(if (if (clojure.core/not (js* \"(~{} == ~{})\" %s nil)) (if (js* \"((~{}) || (~{}))\"  (js* \"(~{} & ~{})\" (. %s -cljs$lang$protocol_mask$partition0$) 64) (js* \"(~{} === ~{})\" cljs.core/PROTOCOL_SENTINEL (. %s -cljs$core$ISeq$))) true false) false) (clojure.core/apply cljs.core/hash-map %s) %s)"
+             sym sym sym sym sym)))
+
 
 
 (declare guard-bindings)
 (defn guard-bindings-seq-let [form]
   (let [[let_ [sym expr] & bodies] form
         [sym-name sym-id] (-> sym name (str/split #"__"))
-        destructuring? #{(clj-11-map-str sym)
-                         (clj-09-map-str sym)}]
+        destructuring? #{#?(:clj  (clj-09-map-str sym))
+                         #?(:clj  (clj-11-map-str sym))
+                         #?(:cljs (cljs-10-map-str sym))}]
     (if (and (= sym-name "map") (-> expr pr-str destructuring?))
       (apply list let_ [sym (list ::GUARD expr)] (guard-bindings bodies))
       (apply list let_ [sym (guard-bindings expr)] (guard-bindings bodies)))))
@@ -702,7 +708,6 @@
                  (rename)
                  (spy "rename"))
         [defs body] (parse normal)]
-    ()
     (-> body
       (spy "parse")
       (wrap defs)
