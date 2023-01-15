@@ -685,6 +685,15 @@
 (def unguard-bindings (u/make-stateless-walker unguard-bindings-seq))
 
 
+(defn no-lazy-seqs [form]
+  ;; this avoids cljs warning:
+  ;;  102 |   (blet [...
+  ;; ---------^----------------------------------------------------------------------
+  ;; Cannot infer target type in expression clojure.lang.LazySeq@bb3bc6c9
+  (clojure.walk/prewalk
+    (fn [x] (if (seq? x) (apply list x) x))
+    form))
+
 
 (defn blet [&form_ let-binds-body print? file-line & [debug?]]
   (let [spy    (fn [x & [label]]
@@ -728,5 +737,6 @@
       (spy "merge-lets")
       (unguard-bindings)
       (spy "unguard-bindings")
+      (no-lazy-seqs)
       (cond->
         print? (p/insert-prints-init &form_ file-line)))))
