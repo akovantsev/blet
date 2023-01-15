@@ -39,19 +39,24 @@
 ;   (let* [G__23 x] (cljs.core/cond (cljs.core/= 'a G__23) 2 (cljs.core/= 'b G__23) 4 :else c))
 ;cljs.user=> (macroexpand '(case x 1 a 2 b c))
 ;   (let* [G__24 x] (case* G__24 [[1] [2]] [a b] c))
-#?(:clj (defn map-case-vals [fv branches]
-          ;; {1 [1 a], 2 [2 b]} -> {1 [1 (fv a)], 2 [2 (fv b)]}
-          (let [f2 (fn [[x y]] [x (fv y)])
-                f+ (fn [pairs] (->> pairs (partition 2) (mapcat f2) (vec)))]
-            (reduce-kv (fn rf [m k v] (assoc m k (f+ v))) (sorted-map) branches))))
+;cljs.user=> (macroexpand '(case x 0 (u/assoc-in* refs path comb) 1))
+;  (let* [G__24 x] (case* G__24 [[0]] [(u/assoc-in* refs path comb)] 1))
+
+(defn map-case-vals [fv branches]
+  ;; {1 [1 a], 2 [2 b]} -> {1 [1 (fv a)], 2 [2 (fv b)]}
+  (let [f2 (fn [[x y]] [x (fv y)])
+        f+ (fn [pairs] (->> pairs (partition 2) (mapcat f2) (vec)))]
+    (reduce-kv (fn rf [m k v] (assoc m k (f+ v))) (sorted-map) branches)))
 
 
 (defn update-case [case-form sym-fn branch-fn default-fn]
-  #?(:cljs (let [[case_ sym preds branches default] case-form]
-             (list case_ (sym-fn sym) preds (mapv branch-fn branches) (default-fn default)))
-
-     :clj  (let [[case_ sym x1 x2 default branches & tail] case-form]
-             (apply list case_ (sym-fn sym) x1 x2 (default-fn default) (map-case-vals branch-fn branches) tail))))
+  (if (-> case-form count (= 5))
+    ;; cljs:
+    (let [[case_ sym preds branches default] case-form]
+      (list case_ (sym-fn sym) preds (mapv branch-fn branches) (default-fn default)))
+    ;; clj:
+    (let [[case_ sym x1 x2 default branches & tail] case-form]
+      (apply list case_ (sym-fn sym) x1 x2 (default-fn default) (map-case-vals branch-fn branches) tail))))
 
 (defn update-case-branches [form branch-f] (update-case form identity branch-f branch-f))
 
@@ -70,9 +75,6 @@
 
 
 
-(defn queue [init]
-  #?(:cljs (into #queue[] init)
-     :clj  (into PersistentQueue/EMPTY init)))
 
 ;; cant use postwalk anywhere because need to detect and dont touch quoted forms:
 (defn quoted? [form] (and (seq? form) (= (first form) 'quote)))

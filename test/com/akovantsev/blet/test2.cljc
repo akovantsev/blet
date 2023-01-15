@@ -620,4 +620,20 @@
            (or b d) (or b a c)
            e        (or b a (and d a)))))))
 
+(assert= "case descructuring"
+  (reset-gensym
+    (macroexpand
+      '(blet [a (+ 1 2)
+              b (inc 7)]
+         (case a 2 (inc b) :foo))))
+  #?(:clj
+     '(let* [a__0 (+ 1 2)]
+        (case* a__0 0 0 :foo {2 [2 (let* [b__1 (inc 7)] (inc b__1))]} :compact :int))
+     :cljs
+     '(let* [a__0 (js* "(~{} + ~{})" 1 2)]
+        (case* a__0 [[2]]
+          [(let* [b__1 (js* "(~{} + ~{})" 7 1)] (js* "(~{} + ~{})" b__1 1))]
+          :foo))))
+
+
 (println "\n\nTests are done with asserts, so if this is printed out – all is good.")
