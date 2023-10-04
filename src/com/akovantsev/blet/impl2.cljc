@@ -439,6 +439,34 @@
 
 
 
+;; (let [x (recur ...)] x) -> (recur ...)
+;; to avoid:
+;; java.lang.UnsupportedOperationException: Can only recur from tail position
+;; usecase is defining all long recur exprs in blet, and use short syms in cond leafs:
+;; (loop []
+;;   (blet [exit1 (recur ...)
+;;          exit2 (recur ...)]
+;;    (cond
+;;      foo exit1
+;;      bar exit2
+;;      baz exit1)
+(declare push-down-recurs)
+(defn    push-down-recurs-default [form] (map push-down-recurs form))
+(defn    push-down-recurs-let     [form]
+  (let [[let_ [sym expr] body] form]
+    (if (and (= body sym) (u/recur? expr))
+      expr
+      (list let_ [sym expr] (push-down-recurs body)))))
+
+
+
+(defmulti  push-down-recurs-seq      (fn [form] (first form)))
+(defmethod push-down-recurs-seq   'quote [form] form)
+(defmethod push-down-recurs-seq  ::GUARD [form] form)
+(defmethod push-down-recurs-seq :default [form] (push-down-recurs-default form))
+(defmethod push-down-recurs-seq    'let* [form] (push-down-recurs-let form))
+
+(def push-down-recurs (u/make-stateless-walker push-down-recurs-seq))
 
 
 (declare   merge-lets)
@@ -733,6 +761,7 @@
            (spy "lift-branches")
            (u/until-fixed-point fewer-branches)
            (spy "fewer-branches")))
+      push-down-recurs
       (u/until-fixed-point merge-lets)
       (spy "merge-lets")
       (unguard-bindings)

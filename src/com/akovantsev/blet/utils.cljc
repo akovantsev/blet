@@ -18,6 +18,7 @@
 
 (def sconj (fnil conj #{}))
 
+(defn recur?   [form] (and (seq? form) (= (first form) 'recur)))
 (defn loop*?   [form] (and (seq? form) (= (first form) 'loop*)))
 (defn let*?    [form] (and (seq? form) (= (first form) 'let*)))
 (defn case*?   [form] (and (seq? form) (= (first form) 'case*)))

@@ -636,4 +636,11 @@
           :foo))))
 
 
+;(macroexpand-1 '
+(loop [x 1]
+ (blet [foo (recur 1)]
+   (if ((constantly false))
+     foo
+     :bar)))
+
 (println "\n\nTests are done with asserts, so if this is printed out – all is good.")
